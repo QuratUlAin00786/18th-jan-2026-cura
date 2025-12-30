@@ -159,6 +159,13 @@ const IMAGING_TYPE_OPTIONS = [
   "Interventional Radiology (IR)"
 ];
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP'
+  }).format(amount);
+};
+
 function PricingManagementDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -178,6 +185,7 @@ function PricingManagementDashboard() {
   const [showLabRoleSuggestions, setShowLabRoleSuggestions] = useState(false);
   const [showLabDoctorSuggestions, setShowLabDoctorSuggestions] = useState(false);
   const [showImagingTypeSuggestions, setShowImagingTypeSuggestions] = useState(false);
+  const [skipRoleSuggestionFocus, setSkipRoleSuggestionFocus] = useState(false);
   const [labTestFilter, setLabTestFilter] = useState("");
   const [labDoctorFilter, setLabDoctorFilter] = useState("");
   const [doctorFeeServiceFilter, setDoctorFeeServiceFilter] = useState("");
@@ -193,6 +201,14 @@ function PricingManagementDashboard() {
   const [doctorNameError, setDoctorNameError] = useState("");
   const [labTestError, setLabTestError] = useState("");
   const [imagingError, setImagingError] = useState("");
+  const [showAddTreatmentDialog, setShowAddTreatmentDialog] = useState(false);
+  const [treatmentForm, setTreatmentForm] = useState({
+    name: "",
+    basePrice: "",
+    colorCode: "#000000",
+  });
+  const [treatmentError, setTreatmentError] = useState("");
+  const [isSavingTreatment, setIsSavingTreatment] = useState(false);
 
   const { data: users = [] } = useQuery({
     queryKey: ["/api/users"],
@@ -246,7 +262,8 @@ function PricingManagementDashboard() {
     const pathMap: Record<string, string> = {
       "doctors": "doctors-fees",
       "lab-tests": "lab-tests",
-      "imaging": "imaging"
+      "imaging": "imaging",
+      "treatments": "treatments"
     };
     return pathMap[tab] || tab;
   };
@@ -264,6 +281,11 @@ function PricingManagementDashboard() {
   const { data: imaging = [], isLoading: loadingImaging } = useQuery({
     queryKey: ["/api/pricing/imaging"],
     enabled: pricingTab === "imaging"
+  });
+
+  const { data: treatments = [], isLoading: loadingTreatments } = useQuery({
+    queryKey: ["/api/pricing/treatments"],
+    enabled: pricingTab === "treatments"
   });
 
   const generateImagingCode = (imagingType: string) => {
@@ -311,6 +333,50 @@ function PricingManagementDashboard() {
         description: errorMessage, 
         variant: "destructive" 
       });
+    }
+  };
+
+  const openAddTreatmentDialog = () => {
+    setTreatmentForm({
+      name: "",
+      basePrice: "",
+      colorCode: "#000000",
+    });
+    setTreatmentError("");
+    setShowAddTreatmentDialog(true);
+  };
+
+  const handleTreatmentSave = async () => {
+    if (!treatmentForm.name.trim()) {
+      setTreatmentError("Treatment name is required");
+      return;
+    }
+    if (!treatmentForm.basePrice) {
+      setTreatmentError("Price is required");
+      return;
+    }
+
+    const parsedPrice = parseFloat(treatmentForm.basePrice);
+    if (Number.isNaN(parsedPrice)) {
+      setTreatmentError("Price must be a number");
+      return;
+    }
+
+    setIsSavingTreatment(true);
+    try {
+      await apiRequest("POST", "/api/pricing/treatments", {
+        name: treatmentForm.name.trim(),
+        basePrice: parsedPrice,
+        colorCode: treatmentForm.colorCode,
+        currency: "GBP",
+      });
+      toast({ title: "Success", description: "Treatment added" });
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing/treatments"] });
+      setShowAddTreatmentDialog(false);
+    } catch (error: any) {
+      setTreatmentError(error.message || "Failed to add treatment");
+    } finally {
+      setIsSavingTreatment(false);
     }
   };
 
@@ -792,6 +858,8 @@ function PricingManagementDashboard() {
     
     setEditingItem(null);
     setShowAddDialog(true);
+    setSkipRoleSuggestionFocus(true);
+    setTimeout(() => setSkipRoleSuggestionFocus(false), 0);
   };
 
   const openEditDialog = (item: any) => {
@@ -802,10 +870,11 @@ function PricingManagementDashboard() {
 
   return (
     <Tabs value={pricingTab} onValueChange={setPricingTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList className="grid w-full grid-cols-4">
         <TabsTrigger value="doctors" data-testid="tab-doctors-pricing">Doctors Fees</TabsTrigger>
         <TabsTrigger value="lab-tests" data-testid="tab-lab-tests-pricing">Lab Tests</TabsTrigger>
         <TabsTrigger value="imaging" data-testid="tab-imaging-pricing">Imaging</TabsTrigger>
+        <TabsTrigger value="treatments" data-testid="tab-treatments-pricing">Treatments</TabsTrigger>
       </TabsList>
 
       <TabsContent value="doctors" className="space-y-4 mt-4">
@@ -1134,6 +1203,72 @@ function PricingManagementDashboard() {
         )}
       </TabsContent>
 
+      <TabsContent value="treatments" className="space-y-4 mt-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Treatments</h3>
+          {canCreate('billing') && (
+            <Button size="sm" onClick={openAddTreatmentDialog} data-testid="button-add-treatments">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Treatements
+            </Button>
+          )}
+        </div>
+
+        {loadingTreatments ? (
+          <div className="text-center py-8">Loading...</div>
+        ) : treatments.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No treatments configured yet. Click "Add Treatments" to get started.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 dark:bg-gray-800">
+                  <th className="text-left p-3">Name</th>
+                  <th className="text-left p-3">Price</th>
+                  <th className="text-left p-3">Color</th>
+                  <th className="text-left p-3">Status</th>
+                  <th className="text-left p-3">Version</th>
+                </tr>
+              </thead>
+              <tbody>
+                {treatments.map((treatment: any) => (
+                  <tr key={treatment.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="p-3 font-medium">{treatment.name}</td>
+                    <td className="p-3 font-semibold">
+                      {(() => {
+                        const priceNumber = Number(treatment.basePrice);
+                        return Number.isNaN(priceNumber)
+                          ? `${treatment.currency || ""} ${treatment.basePrice ?? "—"}`.trim()
+                          : formatCurrency(priceNumber);
+                      })()}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="w-4 h-4 rounded-full border" 
+                          style={{ backgroundColor: treatment.colorCode || "#000" }}
+                          aria-hidden="true"
+                        />
+                        <span>{treatment.colorCode || "—"}</span>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant={treatment.isActive ? "default" : "secondary"}>
+                        {treatment.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </td>
+                    <td className="p-3">v{treatment.version ?? 1}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </TabsContent>
+
+
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1156,7 +1291,13 @@ function PricingManagementDashboard() {
                         setShowRoleSuggestions(true);
                         setDoctorRoleError(""); // Clear error on change
                       }}
-                      onFocus={() => setShowRoleSuggestions(true)}
+                      onFocus={() => {
+                        if (skipRoleSuggestionFocus) {
+                          setSkipRoleSuggestionFocus(false);
+                          return;
+                        }
+                        setShowRoleSuggestions(true);
+                      }}
                       placeholder="Select role"
                       autoComplete="off"
                       required
@@ -1433,7 +1574,13 @@ function PricingManagementDashboard() {
                       setFormData({ ...formData, doctorRole: e.target.value, doctorName: "", doctorId: null });
                       setShowRoleSuggestions(true);
                     }}
-                    onFocus={() => setShowRoleSuggestions(true)}
+                      onFocus={() => {
+                        if (skipRoleSuggestionFocus) {
+                          setSkipRoleSuggestionFocus(false);
+                          return;
+                        }
+                        setShowRoleSuggestions(true);
+                      }}
                     placeholder="Select role (optional)"
                     autoComplete="off"
                   />
@@ -2108,6 +2255,66 @@ function PricingManagementDashboard() {
           <DialogFooter>
             <Button onClick={() => setShowImagingExistsModal(false)}>
               OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddTreatmentDialog} onOpenChange={setShowAddTreatmentDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Treatment</DialogTitle>
+            <DialogDescription>
+              Save a new treatment so it appears in the Pricing Management grid.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1">
+              <Label htmlFor="treatment-name">Treatment Name</Label>
+              <Input
+                id="treatment-name"
+                value={treatmentForm.name}
+                onChange={(e) => setTreatmentForm({ ...treatmentForm, name: e.target.value })}
+                placeholder="e.g. IV drip"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="treatment-price">Price (GBP)</Label>
+              <Input
+                id="treatment-price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={treatmentForm.basePrice}
+                onChange={(e) => setTreatmentForm({ ...treatmentForm, basePrice: e.target.value })}
+                placeholder="e.g. 5.00"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="treatment-color">Color</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="treatment-color"
+                  type="color"
+                  className="w-16 h-10 p-0"
+                  value={treatmentForm.colorCode}
+                  onChange={(e) => setTreatmentForm({ ...treatmentForm, colorCode: e.target.value })}
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-400">{treatmentForm.colorCode}</span>
+              </div>
+            </div>
+            {treatmentError && (
+              <p className="text-sm text-red-500">{treatmentError}</p>
+            )}
+          </div>
+
+          <DialogFooter className="space-x-2">
+            <Button variant="outline" onClick={() => setShowAddTreatmentDialog(false)} disabled={isSavingTreatment}>
+              Cancel
+            </Button>
+            <Button onClick={handleTreatmentSave} disabled={isSavingTreatment}>
+              {isSavingTreatment ? "Saving..." : "Add New Treatments"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3526,13 +3733,6 @@ export default function BillingPage() {
       case 'partially_paid': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP'
-    }).format(amount);
   };
 
   const getTotalRevenue = () => {
