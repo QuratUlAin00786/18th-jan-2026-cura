@@ -318,9 +318,9 @@ export function AdminDashboard() {
       color: "text-purple-500"
     },
     {
-      title: "Revenue (MTD)",
-      value: isLoading ? "--" : "£0",
-      description: isLoading ? "Loading..." : "Month to date revenue",
+      title: "Total Revenue",
+      value: isLoading ? "--" : `£${(stats?.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      description: isLoading ? "Loading..." : "Total revenue received",
       icon: CreditCard,
       href: `/${subdomain}/billing`,
       color: "text-yellow-500"

@@ -6155,14 +6155,22 @@ const formIds = useMemo(
                           >
                             Share
                           </Button>
-                              <Button
-                                size="sm"
-                                className="px-3 py-1 rounded-md bg-[#10b981] text-white shadow-sm border border-transparent hover:bg-[#059669]"
-                                onClick={() => handleViewFormResponses(form)}
-                              >
-                                View responses
-                              </Button>
-                              <Button
+                          <Button
+                            size="sm"
+                            className="px-3 py-1 rounded-md bg-[#4A7DFF] text-white shadow-sm border border-transparent hover:bg-[#2563eb]"
+                            onClick={() => handleViewFormResponses(form)}
+                          >
+                            View responses
+                          </Button>
+                           
+                          <Button
+                            size="sm"
+                            className="px-3 py-1 rounded-md bg-[#4A7DFF] text-white shadow-sm border border-transparent hover:bg-[#2563eb]"
+                            onClick={() => openShareLinksDialog(form)}
+                          >
+                            Links
+                          </Button>
+                          <Button
                                 size="sm"
                                 className="px-3 py-1 rounded-md bg-[#ef4444] text-white shadow-sm border border-transparent hover:bg-[#dc2626]"
                                 onClick={() => {
@@ -6172,13 +6180,6 @@ const formIds = useMemo(
                                 disabled={deleteFormMutation.isPending}
                               >
                                 Delete
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="px-3 py-1 rounded-md bg-[#f97316] text-white shadow-sm border border-transparent hover:bg-[#ea580c]"
-                                onClick={() => openShareLinksDialog(form)}
-                              >
-                                Links
                               </Button>
                             </div>
                             <div className="flex flex-wrap gap-2">

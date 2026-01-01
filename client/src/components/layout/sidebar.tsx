@@ -169,12 +169,13 @@ const ADMIN_NAVIGATION = [
 export function Sidebar() {
   const [location] = useLocation();
   const { tenant } = useTenant();
-  const { user, logout } = useAuth();
-  const { canAccess, getUserRole, isLoading } = useRolePermissions();
+  const { user, logout, loading: authLoading } = useAuth();
+  const { canAccess, getUserRole, isLoading: permissionsLoading } = useRolePermissions();
+  const [isRoleDataReady, setIsRoleDataReady] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Fetch organization data with React Query to automatically update when settings change
+  // Fetch organization data with React Query
   const { data: organizationData } = useQuery<Organization>({
     queryKey: ["/api/tenant/info"],
     queryFn: async () => {
@@ -204,6 +205,17 @@ export function Sidebar() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Set role data as ready once loading is finished
+  useEffect(() => {
+    if (!authLoading && !permissionsLoading) {
+      // Small delay to ensure state has propagated
+      const timer = setTimeout(() => setIsRoleDataReady(true), 100);
+      return () => clearTimeout(timer);
+    } else {
+      setIsRoleDataReady(false);
+    }
+  }, [authLoading, permissionsLoading]);
+
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
@@ -211,100 +223,34 @@ export function Sidebar() {
   // Filter navigation based on user role permissions
   const currentRole = getUserRole();
 
-  // Items to hide from Patient role users
-  const patientHiddenItems = [
-    "Financial Intelligence",
-    "QuickBooks",
-  ];
-
-  // Items to show ONLY to Patient role users (hide from all other roles)
-  const patientOnlyItems = ["Patient Portal"];
-
-  // Items to hide from all users
-  const hiddenItems = ["Automation"];
-
-  const roleSpecificHidden: Record<UserRole, string[]> = {
-    doctor: ["User Management", "Subscription/Packages", "Settings", "User Manual"],
-    nurse: ["User Management", "Subscription/Packages", "Settings", "User Manual"],
-    patient: ["Shift Management", "User Management", "Subscription/Packages", "Settings", "User Manual"],
-  };
-
-  const restrictedRoleModules = new Set([
-    "Dashboard",
-    "Patients",
-    "Appointments",
-    "Prescriptions",
-    "Lab Results",
-    "Imaging",
-    "Forms",
-    "Messaging",
-    "Analytics",
-    "Patient Portal",
-    "Clinical Decision Support",
-    "Symptom Checker",
-    "Telemedicine",
-    "Voice Documentation",
-    "Billing",
-    "Inventory",
-  ]);
-
   const filteredNavigation = ALL_NAVIGATION.filter((item) => {
-    // Hide specific items from all users
-    if (hiddenItems.includes(item.name)) {
+    // Admin has full access to everything
+    if (currentRole === "admin") {
+      return true;
+    }
+
+    // STRICT: Only show modules after auth and permissions are fully loaded from DB
+    if (!isRoleDataReady || !user) {
       return false;
     }
 
-    // While permissions are loading, show all items (except role-specific restrictions)
-    // This prevents the sidebar from being empty while fetching permissions from database
-    if (!isLoading) {
-      // First check role permissions from database
-      if (!canAccess(item.module)) return false;
-    }
-
-    // Ensure certain modules honor DB permissions for doctor/nurse/patient roles even while loading
-    if (
-      (currentRole === "doctor" ||
-        currentRole === "nurse" ||
-        currentRole === "patient") &&
-      restrictedRoleModules.has(item.name)
-    ) {
-      if (isLoading) {
-        return false;
-      }
-      if (!canAccess(item.module)) {
-        return false;
-      }
-    }
-
-    // Hide specific items from Patient role users
-    if (currentRole === "patient" && patientHiddenItems.includes(item.name)) {
-      return false;
-    }
-
-    // Show patient-only items ONLY to patients (hide from admin, doctor, nurse, etc.)
-    if (currentRole !== "patient" && patientOnlyItems.includes(item.name)) {
-      return false;
-    }
-
-    // Role-specific navigation restrictions
-    if (currentRole && roleSpecificHidden[currentRole] && roleSpecificHidden[currentRole].includes(item.name)) {
-      return false;
-    }
-
-    return true;
+    // Check specific module access from database
+    return canAccess(item.module);
   });
 
   const filteredAdminNavigation = ADMIN_NAVIGATION.filter((item) => {
-    // Role-specific navigation restrictions
-    if (currentRole && roleSpecificHidden[currentRole] && roleSpecificHidden[currentRole].includes(item.name)) {
+    // Admin has full access to everything
+    if (currentRole === "admin") {
+      return true;
+    }
+
+    // STRICT: Only show modules after auth and permissions are fully loaded from DB
+    if (!isRoleDataReady || !user) {
       return false;
     }
 
-    // While permissions are loading, show items (will be filtered after load)
-    if (!isLoading) {
-      return canAccess(item.module);
-    }
-    return true;
+    // Check specific module access from database
+    return canAccess(item.module);
   });
 
   const toggleMobileMenu = () => {

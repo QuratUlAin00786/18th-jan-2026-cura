@@ -919,7 +919,7 @@ export class DatabaseStorage implements IStorage {
       createdAt: roles.createdAt,
       updatedAt: roles.updatedAt,
     }).from(roles)
-      .where(and(eq(roles.name, name), eq(roles.organizationId, organizationId)));
+      .where(and(sql`LOWER(${roles.name}) = LOWER(${name})`, eq(roles.organizationId, organizationId)));
     return role || undefined;
   }
 
@@ -1827,10 +1827,11 @@ export class DatabaseStorage implements IStorage {
     aiSuggestions: number;
     revenue: number;
   }> {
-    const [totalPatientsResult] = await db
+    // Count total users with role 'patient'
+    const [totalUserPatientsResult] = await db
       .select({ count: count() })
-      .from(patients)
-      .where(and(eq(patients.organizationId, organizationId), eq(patients.isActive, true)));
+      .from(users)
+      .where(and(eq(users.organizationId, organizationId), eq(users.role, 'patient'), eq(users.isActive, true)));
 
     // Only count appointments scheduled for today
     const [todayAppointmentsResult] = await db
@@ -1847,11 +1848,22 @@ export class DatabaseStorage implements IStorage {
       .from(aiInsights)
       .where(eq(aiInsights.organizationId, organizationId));
 
+    // Calculate total revenue from all payments (matching billing.tsx logic)
+    const paymentsList = await db
+      .select({ amount: payments.amount })
+      .from(payments)
+      .where(eq(payments.organizationId, organizationId));
+    
+    const totalRevenue = paymentsList.reduce((sum, p) => {
+      const amount = typeof p.amount === 'string' ? parseFloat(p.amount) : (Number(p.amount) || 0);
+      return sum + amount;
+    }, 0);
+
     return {
-      totalPatients: totalPatientsResult?.count || 0,
+      totalPatients: totalUserPatientsResult?.count || 0,
       todayAppointments: todayAppointmentsResult?.count || 0,
       aiSuggestions: aiSuggestionsResult?.count || 0,
-      revenue: 89240, // This would be calculated from billing data
+      revenue: totalRevenue,
     };
   }
 
@@ -2196,12 +2208,18 @@ export class DatabaseStorage implements IStorage {
       // Get payment data from database
       const paymentsList = await db.select().from(payments).where(eq(payments.organizationId, organizationId));
       
-      const totalPatients = patientsList.length;
+      // Count total users with role 'patient'
+      const userPatientsList = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.organizationId, organizationId), eq(users.role, 'patient'), eq(users.isActive, true)));
+      
+      const totalPatients = userPatientsList.length;
       const totalAppointments = appointmentsList.length;
       
       // Calculate new patients (created in last 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const newPatients = patientsList.filter(p => new Date(p.createdAt) > thirtyDaysAgo).length;
+      const newPatients = userPatientsList.filter(u => new Date(u.createdAt) > thirtyDaysAgo).length;
       
       // Calculate appointment stats
       const completedAppointments = appointmentsList.filter(a => a.status === 'completed').length;
@@ -2293,12 +2311,12 @@ export class DatabaseStorage implements IStorage {
         const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
         const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
         
-        const monthPatients = patientsList.filter(p => {
-          const createdDate = new Date(p.createdAt);
+        const monthPatients = userPatientsList.filter(u => {
+          const createdDate = new Date(u.createdAt);
           return createdDate >= monthStart && createdDate <= monthEnd;
         }).length;
         
-        const totalToDate = patientsList.filter(p => new Date(p.createdAt) <= monthEnd).length;
+        const totalToDate = userPatientsList.filter(u => new Date(u.createdAt) <= monthEnd).length;
         
         patientGrowthData.push({
           month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
@@ -2337,13 +2355,16 @@ export class DatabaseStorage implements IStorage {
       // Calculate revenue from completed payments
       const totalRevenue = paymentsList
         .filter(p => p.paymentStatus === 'completed')
-        .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        .reduce((sum, p) => {
+          const amount = typeof p.amount === 'string' ? parseFloat(p.amount) : (Number(p.amount) || 0);
+          return sum + amount;
+        }, 0);
 
       // New Analytics for Overview Tab
       // 1. Patients registered this month
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const patientsThisMonth = patientsList.filter(p => new Date(p.createdAt) >= startOfMonth).length;
+      const patientsThisMonth = userPatientsList.filter(u => new Date(u.createdAt) >= startOfMonth).length;
 
       // 2. Doctor who handled the most appointments
       const doctorAppointmentCounts = appointmentsList.reduce((acc, appointment) => {

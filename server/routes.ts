@@ -2003,7 +2003,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/gdpr/patient/:patientId/data-export", requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.get("/api/gdpr/patient/:patientId/data-export", requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const { patientId } = req.params;
       const { requestId } = req.query;
@@ -2493,7 +2493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate anatomical treatment plan using OpenAI
-  app.post("/api/ai/generate-treatment-plan", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/ai/generate-treatment-plan", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const { 
         patientId,
@@ -2587,7 +2587,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Generate new AI insights using OpenAI
-  app.post("/api/ai/generate-insights", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/ai/generate-insights", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const { patientId } = req.body;
       
@@ -6900,9 +6900,15 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Get role permissions by role name
-  app.get("/api/roles/by-name/:roleName", authMiddleware, requireRole(["admin", "doctor", "nurse", "patient"]), async (req: TenantRequest, res) => {
+  app.get("/api/roles/by-name/:roleName", authMiddleware, async (req: TenantRequest, res) => {
     try {
       const { roleName } = req.params;
+      
+      // Security check: Only allow users to fetch their own role permissions, or admins to fetch any
+      if (req.user?.role !== "admin" && req.user?.role?.toLowerCase() !== roleName.toLowerCase()) {
+        return res.status(403).json({ error: "Access denied. You can only fetch permissions for your own role." });
+      }
+
       const role = await storage.getRoleByName(roleName, req.tenant!.id);
       
       if (!role) {
@@ -10785,7 +10791,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/forms", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/forms", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
@@ -10817,7 +10823,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   app.post(
     "/api/forms/:formId/share",
     authMiddleware,
-    requireRole(["admin", "doctor"]),
+    requireRole(["admin", "doctor", "nurse"]),
     async (req: TenantRequest, res) => {
       try {
         if (!req.user) {
@@ -10848,7 +10854,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   app.get(
     "/api/forms/:formId/shares",
     authMiddleware,
-    requireRole(["admin", "doctor"]),
+    requireRole(["admin", "doctor", "nurse"]),
     async (req: TenantRequest, res) => {
       try {
         const organizationId = requireOrgId(req);
@@ -10893,7 +10899,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   app.post(
     "/api/forms/share-logs/:logId/resend",
     authMiddleware,
-    requireRole(["admin", "doctor"]),
+    requireRole(["admin", "doctor", "nurse"]),
     async (req: TenantRequest, res) => {
       try {
         if (!req.user) {
@@ -10918,7 +10924,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   app.post(
     "/api/forms/:formId/share/preview",
     authMiddleware,
-    requireRole(["admin", "doctor"]),
+    requireRole(["admin", "doctor", "nurse"]),
     async (req: TenantRequest, res) => {
       try {
         if (!req.user) {
@@ -10949,7 +10955,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   app.delete(
     "/api/forms/:formId",
     authMiddleware,
-    requireRole(["admin", "doctor"]),
+    requireRole(["admin", "doctor", "nurse"]),
     async (req: TenantRequest, res) => {
       try {
         const organizationId = requireOrgId(req);
@@ -10998,7 +11004,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/automation/rules/:id/toggle", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/automation/rules/:id/toggle", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const rule = await storage.toggleAutomationRule(req.params.id, req.tenant!.id);
       res.json(rule);
@@ -11570,7 +11576,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/messaging/campaigns", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/campaigns", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       console.log("📧 CREATE CAMPAIGN - Request body:", JSON.stringify(req.body, null, 2));
       console.log("📧 CREATE CAMPAIGN - User ID:", req.user!.id);
@@ -11593,7 +11599,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.put("/api/messaging/campaigns/:id", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.put("/api/messaging/campaigns/:id", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
       const campaignData = {
@@ -11608,7 +11614,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.delete("/api/messaging/campaigns/:id", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.delete("/api/messaging/campaigns/:id", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
       await storage.deleteMessageCampaign(campaignId, req.tenant!.id);
@@ -11619,7 +11625,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/messaging/campaigns/:id/send", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/campaigns/:id/send", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
       const organizationId = req.tenant!.id;
@@ -11705,7 +11711,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Send message to a single recipient (for real-time progress tracking)
-  app.post("/api/messaging/campaigns/:id/send-single", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/campaigns/:id/send-single", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
       const organizationId = req.tenant!.id;
@@ -11780,7 +11786,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Update campaign status after all sends complete
-  app.post("/api/messaging/campaigns/:id/finalize-send", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/campaigns/:id/finalize-send", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
       const organizationId = req.tenant!.id;
@@ -11809,7 +11815,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/messaging/templates", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/templates", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       // Validate request body with Zod schema
       const validationResult = insertMessageTemplateSchema.omit({ createdBy: true, organizationId: true }).safeParse(req.body);
@@ -11833,7 +11839,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.put("/api/messaging/templates/:id", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.put("/api/messaging/templates/:id", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const templateId = parseInt(req.params.id);
       
@@ -11859,7 +11865,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.delete("/api/messaging/templates/:id", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.delete("/api/messaging/templates/:id", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const templateId = parseInt(req.params.id);
       const deleted = await storage.deleteMessageTemplate(templateId, req.tenant!.id);
@@ -11875,7 +11881,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/messaging/templates/:id/send-to-selected", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/templates/:id/send-to-selected", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const templateId = parseInt(req.params.id);
       const { recipients } = req.body;
@@ -11969,7 +11975,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/messaging/templates/:id/send-to-all", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/templates/:id/send-to-all", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const templateId = parseInt(req.params.id);
       
@@ -12147,7 +12153,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/messaging/bulk", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/messaging/bulk", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const { recipients, message, messageType = 'sms' } = req.body;
       
@@ -17258,7 +17264,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Forecast Models endpoints
-  app.get("/api/forecast-models", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.get("/api/forecast-models", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const models = await storage.getForecastModels(req.tenant!.id);
       res.json(models);
@@ -17268,7 +17274,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.get("/api/forecast-models/:id", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.get("/api/forecast-models/:id", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -17287,7 +17293,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.post("/api/forecast-models", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/forecast-models", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const modelData = z.object({
         name: z.string().min(1),
@@ -17317,7 +17323,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.put("/api/forecast-models/:id", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.put("/api/forecast-models/:id", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -17352,7 +17358,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  app.delete("/api/forecast-models/:id", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.delete("/api/forecast-models/:id", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -17781,7 +17787,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
 
       // Get doctor's dashboard data
       const todayAppointments = await storage.getAppointmentsByProvider(userId, req.tenant!.id);
-      const totalPatients = await storage.getPatientsByOrganization(req.tenant!.id);
+      const patientUsers = await storage.getUsersByRole("patient", req.tenant!.id);
       const pendingPrescriptions = await storage.getPrescriptionsByProvider(userId, req.tenant!.id);
       
       res.json({
@@ -17790,7 +17796,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
           const today = new Date();
           return aptDate.toDateString() === today.toDateString();
         }).length,
-        totalPatients: totalPatients.length,
+        totalPatients: patientUsers.length,
         pendingPrescriptions: pendingPrescriptions.filter(p => p.status === 'pending').length,
         upcomingAppointments: todayAppointments.slice(0, 5).map(apt => ({
           id: apt.id,
@@ -18220,12 +18226,12 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   app.get("/api/mobile/doctor/dashboard", authMiddleware, requireRole(["doctor"]), async (req: TenantRequest, res) => {
     try {
       const todayAppointments = await storage.getAppointmentsByOrganization(req.tenant!.id, new Date());
-      const totalPatients = await storage.getPatientsByOrganization(req.tenant!.id);
+      const patientUsers = await storage.getUsersByRole("patient", req.tenant!.id);
       const pendingPrescriptions = await storage.getPrescriptionsByOrganization(req.tenant!.id);
       
       const dashboardData = {
         todayAppointments: todayAppointments.length,
-        totalPatients: totalPatients.length,
+        totalPatients: patientUsers.length,
         pendingPrescriptions: pendingPrescriptions.filter(p => p.status === 'pending').length,
         upcomingAppointments: todayAppointments
           .filter(apt => new Date(apt.scheduledAt) > new Date())
@@ -19756,7 +19762,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Create or update chatbot configuration
-  app.post("/api/chatbot/config", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.post("/api/chatbot/config", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const existingConfig = await storage.getChatbotConfig(req.tenant!.id);
       
@@ -19900,7 +19906,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Admin: Get chatbot analytics
-  app.get("/api/chatbot/analytics", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.get("/api/chatbot/analytics", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const date = req.query.date ? new Date(req.query.date as string) : undefined;
       const analytics = await storage.getChatbotAnalytics(req.tenant!.id, date);
@@ -19912,7 +19918,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Admin: Get chatbot sessions
-  app.get("/api/chatbot/sessions", authMiddleware, requireRole(["admin", "doctor"]), async (req: TenantRequest, res) => {
+  app.get("/api/chatbot/sessions", authMiddleware, requireRole(["admin", "doctor", "nurse"]), async (req: TenantRequest, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const sessions = await storage.getChatbotSessionsByOrganization(req.tenant!.id, limit);

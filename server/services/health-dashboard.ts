@@ -87,6 +87,10 @@ export class HealthDashboardService {
     const appointments = await storage.getAppointmentsByOrganization(organizationId, new Date());
     const notifications = await storage.getNotifications(1, organizationId, 100); // Get admin notifications
 
+    // Count total users with role 'patient' for accurate "Total Patients" display
+    const users = await storage.getUsersByRole("patient", organizationId);
+    const totalPatientsCount = users.length;
+
     // Calculate active patients (had visit in last 90 days)
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -116,7 +120,7 @@ export class HealthDashboardService {
 
     return {
       organizationId,
-      totalPatients: patients.length,
+      totalPatients: totalPatientsCount,
       activePatients,
       highRiskPatients: highRiskPatients.length,
       criticalAlerts,
@@ -399,10 +403,18 @@ export class HealthDashboardService {
   }
 
   private async calculateRevenueMetrics(organizationId: number) {
+    const payments = await storage.getPaymentsByOrganization(organizationId);
+    const monthlyRevenue = payments
+      .filter(p => p.paymentStatus === 'completed')
+      .reduce((sum, p) => {
+        const amount = typeof p.amount === 'string' ? parseFloat(p.amount) : (Number(p.amount) || 0);
+        return sum + amount;
+      }, 0);
+
     return {
-      monthlyRevenue: 125000 + Math.floor(Math.random() * 50000),
-      growthRate: 8.5 + Math.random() * 5,
-      outstandingBilling: 25000 + Math.floor(Math.random() * 15000)
+      monthlyRevenue,
+      growthRate: 8.5, // Mock value
+      outstandingBilling: 0 // Mock value
     };
   }
 

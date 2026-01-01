@@ -73,13 +73,6 @@ export function useRolePermissions() {
       return true;
     }
 
-    const isDoctorRole = isDoctorLike(user?.role);
-    const isNurseRole = user?.role === 'nurse';
-    if ((isDoctorRole || isNurseRole) && module === 'billing') {
-      // Doctors/nurses get full billing access for creating invoices
-      return true;
-    }
-    
     // Map frontend module names to backend module names
     const moduleMapping: Record<string, string> = {
       'dashboard': 'dashboard',

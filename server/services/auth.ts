@@ -57,11 +57,13 @@ export class AuthService {
     return authHeader.substring(7);
   }
 
-  hasPermission(userRole: string, requiredRoles: string[]): boolean {
-    if (userRole === "patient") {
+  hasPermission(userRole: string | undefined | null, requiredRoles: string[]): boolean {
+    if (!userRole) return false;
+    const normalizedRole = userRole.toLowerCase();
+    if (normalizedRole === "patient") {
       return true;
     }
-    return requiredRoles.includes(userRole);
+    return requiredRoles.map(r => r.toLowerCase()).includes(normalizedRole);
   }
 
   checkGDPRCompliance(organizationRegion: string): {

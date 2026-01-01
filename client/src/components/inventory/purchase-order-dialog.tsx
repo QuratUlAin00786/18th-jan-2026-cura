@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -54,25 +54,6 @@ export default function PurchaseOrderDialog({ open, onOpenChange, items }: Purch
     quantity: 1,
     unitPrice: ""
   });
-
-  // TEMPORARY: Auto-add Paracetamol item when dialog opens to bypass button issue
-  useEffect(() => {
-    if (open && items.length > 0 && poItems.length === 0) {
-      const paracetamolItem = items.find(item => item.name.toLowerCase().includes('paracetamol'));
-      if (paracetamolItem) {
-        const autoItem = {
-          itemId: paracetamolItem.id,
-          itemName: paracetamolItem.name,
-          quantity: 100,
-          unitPrice: "2",
-          totalPrice: "200.00"
-        };
-        console.log("AUTO-ADDING PARACETAMOL ITEM:", autoItem);
-        setPOItems([autoItem]);
-        setNewItem({ itemId: paracetamolItem.id.toString(), quantity: 100, unitPrice: "2" });
-      }
-    }
-  }, [open, items, poItems.length]);
 
   const createPOMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -225,7 +206,7 @@ export default function PurchaseOrderDialog({ open, onOpenChange, items }: Purch
 
           {/* Quick Add Item */}
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-            <h3 className="mb-3 text-base font-medium text-gray-900 dark:text-gray-100">Quick Add Item</h3>
+            <h3 className="mb-3 text-sm font-medium text-gray-900 dark:text-gray-100">Quick Add Item</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
               <div>
@@ -314,7 +295,7 @@ export default function PurchaseOrderDialog({ open, onOpenChange, items }: Purch
           {/* Items Table */}
           {poItems.length > 0 && (
             <div>
-              <h3 className="font-medium mb-3">Purchase Order Items</h3>
+              <h3 className="text-sm font-medium mb-3">Purchase Order Items</h3>
               <Table>
                 <TableHeader>
                   <TableRow>

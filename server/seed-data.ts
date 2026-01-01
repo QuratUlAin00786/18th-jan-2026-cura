@@ -814,7 +814,7 @@ export async function seedDatabase() {
           name: "nurse",
           displayName: "Nurse",
           description: "Nursing staff with patient care access",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": true}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": true, "view": true}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": true, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": true, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": true, "view": true, "create": true, "delete": false}, "medicalRecords": {"edit": true, "view": true, "create": true, "delete": false}, "forms": {"edit": true, "view": true, "create": true, "delete": false}, "messaging": {"edit": true, "view": true, "create": true, "delete": false}, "shiftManagement": {"edit": true, "view": true, "create": true, "delete": false}, "voiceDocumentation": {"edit": true, "view": true, "create": true, "delete": false}, "symptomChecker": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -830,7 +830,7 @@ export async function seedDatabase() {
           name: "receptionist",
           displayName: "Receptionist",
           description: "Front desk staff with appointment management",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": false}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": true, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": false, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": false}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": true, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": false, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -838,7 +838,13 @@ export async function seedDatabase() {
           name: "lab_technician",
           displayName: "Lab Technician",
           description: "Laboratory technician with lab results access",
-          permissions: {"fields": {}, "modules": {"dashboard": {"edit": false, "view": true, "create": false, "delete": false}}},
+          permissions: {
+            "fields": {},
+            "modules": {
+              "dashboard": {"view": true, "create": false, "edit": false, "delete": false},
+              "labResults": {"view": true, "create": true, "edit": true, "delete": false}
+            }
+          },
           isSystem: true
         },
         {
@@ -846,7 +852,19 @@ export async function seedDatabase() {
           name: "pharmacist",
           displayName: "Pharmacist",
           description: "Pharmacist with prescription access",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": false, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": false, "view": true, "create": false, "delete": false}, "prescriptions": {"edit": true, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {
+            "fields": {
+              "medicalHistory": {"view": true, "edit": false},
+              "patientSensitiveInfo": {"view": false, "edit": false}
+            },
+            "modules": {
+              "dashboard": {"view": true, "create": false, "edit": false, "delete": false},
+              "patients": {"view": true, "create": false, "edit": false, "delete": false},
+              "appointments": {"view": true, "create": false, "edit": false, "delete": false},
+              "prescriptions": {"view": true, "create": true, "edit": true, "delete": false},
+              "medicalRecords": {"view": true, "create": false, "edit": false, "delete": false}
+            }
+          },
           isSystem: true
         },
         {
@@ -854,7 +872,7 @@ export async function seedDatabase() {
           name: "dentist",
           displayName: "Dentist",
           description: "Dental professional with clinical access",
-          permissions: {"fields": {"financialData": {"edit": false, "view": true}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": true, "view": true}}, "modules": {"billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": true, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": true, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": true, "view": true, "create": true, "delete": false}, "medicalRecords": {"edit": true, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": true}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": true, "view": true}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": true, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": true, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": true, "view": true, "create": true, "delete": false}, "medicalRecords": {"edit": true, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -862,7 +880,7 @@ export async function seedDatabase() {
           name: "dental_nurse",
           displayName: "Dental Nurse",
           description: "Dental nursing staff with patient care access",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -870,7 +888,7 @@ export async function seedDatabase() {
           name: "phlebotomist",
           displayName: "Phlebotomist",
           description: "Blood collection specialist",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": false, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": false, "view": true, "create": false, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": false, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": false, "view": true, "create": false, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -878,7 +896,7 @@ export async function seedDatabase() {
           name: "aesthetician",
           displayName: "Aesthetician",
           description: "Aesthetic treatment specialist",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -886,7 +904,7 @@ export async function seedDatabase() {
           name: "optician",
           displayName: "Optician",
           description: "Eye care and vision specialist",
-          permissions: {"fields": {"financialData": {"edit": false, "view": true}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": false, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": false, "view": true, "create": false, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": true}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": false, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": false, "view": true, "create": false, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -894,7 +912,7 @@ export async function seedDatabase() {
           name: "paramedic",
           displayName: "Paramedic",
           description: "Emergency medical services professional",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": true, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": true, "view": false, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": true, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": false, "create": false, "delete": false}, "medicalRecords": {"edit": true, "view": false, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -902,7 +920,7 @@ export async function seedDatabase() {
           name: "physiotherapist",
           displayName: "Physiotherapist",
           description: "Physical therapy specialist",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": true, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": true, "view": true}, "patientSensitiveInfo": {"edit": false, "view": true}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": true, "create": false, "delete": false}, "patients": {"edit": true, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": true, "view": true, "create": true, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         },
         {
@@ -910,7 +928,18 @@ export async function seedDatabase() {
           name: "sample_taker",
           displayName: "Sample Taker",
           description: "Medical sample collection specialist",
-          permissions: {"fields": {}, "modules": {"dashboard": {"edit": false, "view": true, "create": false, "delete": false}}},
+          permissions: {
+            "fields": {
+              "medicalHistory": {"view": true, "edit": false},
+              "patientSensitiveInfo": {"view": true, "edit": false}
+            },
+            "modules": {
+              "dashboard": {"view": true, "create": false, "edit": false, "delete": false},
+              "patients": {"view": true, "create": false, "edit": false, "delete": false},
+              "labResults": {"view": true, "create": true, "edit": true, "delete": false},
+              "appointments": {"view": true, "create": false, "edit": false, "delete": false}
+            }
+          },
           isSystem: true
         },
         {
@@ -918,7 +947,7 @@ export async function seedDatabase() {
           name: "other",
           displayName: "Other",
           description: "Generic role for other healthcare professionals",
-          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": false, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
+          permissions: {"fields": {"financialData": {"edit": false, "view": false}, "medicalHistory": {"edit": false, "view": true}, "patientSensitiveInfo": {"edit": false, "view": false}}, "modules": {"dashboard": {"view": true, "create": false, "edit": false, "delete": false}, "billing": {"edit": false, "view": false, "create": false, "delete": false}, "patients": {"edit": false, "view": true, "create": false, "delete": false}, "settings": {"edit": false, "view": false, "create": false, "delete": false}, "analytics": {"edit": false, "view": false, "create": false, "delete": false}, "appointments": {"edit": true, "view": true, "create": true, "delete": false}, "prescriptions": {"edit": false, "view": true, "create": false, "delete": false}, "medicalRecords": {"edit": false, "view": true, "create": false, "delete": false}, "userManagement": {"edit": false, "view": false, "create": false, "delete": false}}},
           isSystem: true
         }
       ];

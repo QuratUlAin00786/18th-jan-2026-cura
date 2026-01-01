@@ -1703,16 +1703,24 @@ export default function UserManagement() {
       return response.json();
     },
     onSuccess: async (updatedRole) => {
-      // Invalidate and wait for refetch to complete
-      await queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
-      await queryClient.refetchQueries({ queryKey: ["/api/roles"] });
+      // Update the roles list in cache immediately so reopening the modal shows latest data
+      queryClient.setQueryData(["/api/roles"], (oldRoles: any) => {
+        if (!Array.isArray(oldRoles)) return oldRoles;
+        return oldRoles.map((r: any) => r.id === updatedRole.id ? updatedRole : r);
+      });
+      
+      // Also invalidate for safety
+      queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
       
       // CRITICAL: Invalidate role permissions cache for all users with this role
       // This ensures permission updates apply immediately
       await queryClient.invalidateQueries({ queryKey: ["/api/roles/by-name", updatedRole.name] });
       
+      // Close the Edit Role popup as requested
       setIsRoleModalOpen(false);
       setEditingRole(null);
+      
+      // Reset form to initial state
       roleForm.reset({
         name: "",
         displayName: "",
@@ -1720,8 +1728,9 @@ export default function UserManagement() {
         permissions: getInitialPermissions(),
       });
       
-      setSuccessTitle(`Role ${updatedRole.displayName} updated successfully`);
-      setSuccessMessage("");
+      // Show success message
+      setSuccessTitle("Role Updated Successfully");
+      setSuccessMessage(`The role "${updatedRole.displayName}" has been updated.`);
       setShowSuccessModal(true);
     },
     onError: (error: any) => {
@@ -4885,30 +4894,13 @@ export default function UserManagement() {
                       >
                         Cancel
                       </Button>
-                      <Button 
-                        type="button"
-                        onClick={() => {
-                          // Get form values and submit directly (bypass validation since we normalize in onRoleSubmit)
-                          const values = roleForm.getValues();
-                          
-                          // Basic field validation only
-                          if (!values.name || !values.displayName || !values.description) {
-                            toast({
-                              title: "Validation Error",
-                              description: "Please fill in all required fields (Name, Display Name, Description)",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                          
-                          onRoleSubmit(values);
-                        }}
+                      <Button
+                        type="submit"
                         disabled={createRoleMutation.isPending || updateRoleMutation.isPending}
                       >
-                        {createRoleMutation.isPending || updateRoleMutation.isPending ? 
-                          "Saving..." : 
-                          "Save Role"
-                        }
+                        {createRoleMutation.isPending || updateRoleMutation.isPending
+                          ? "Saving..."
+                          : "Save Role"}
                       </Button>
                     </DialogFooter>
                   </form>

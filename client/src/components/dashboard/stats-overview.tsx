@@ -37,12 +37,12 @@ const statCards = [
     changeColor: "text-purple-600"
   },
   {
-    title: "Revenue (MTD)",
+    title: "Total Revenue",
     key: "revenue" as keyof DashboardStats,
     icon: DollarSign,
     color: "text-medical-orange",
     bgColor: "bg-orange-100",
-    change: "+8.2% vs last month",
+    change: "Total revenue received",
     changeColor: "text-green-600",
     prefix: "£"
   }
