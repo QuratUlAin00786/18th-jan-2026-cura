@@ -19,7 +19,7 @@ import { messagingService } from "./messaging-service";
 import { isDoctorLike } from './utils/role-utils.js';
 // PayPal imports moved to dynamic imports to avoid initialization errors when credentials are missing
 import { gdprComplianceService } from "./services/gdpr-compliance";
-import { insertGdprConsentSchema, insertGdprDataRequestSchema, updateMedicalImageReportFieldSchema, medicationsDatabase, patientDrugInteractions, insuranceVerifications, type Appointment, organizations, subscriptions, users, patients, symptomChecks, quickbooksConnections, insertClinicHeaderSchema, insertClinicFooterSchema, doctorsFee, invoices, labResults, insertMessageTemplateSchema, passwordResetTokens, saasSubscriptions, organizationIntegrations, insertTreatmentSchema, insertTreatmentsInfoSchema } from "../shared/schema";
+import { insertGdprConsentSchema, insertGdprDataRequestSchema, updateMedicalImageReportFieldSchema, medicationsDatabase, patientDrugInteractions, insuranceVerifications, type Appointment, organizations, subscriptions, users, User, patients, symptomChecks, quickbooksConnections, insertClinicHeaderSchema, insertClinicFooterSchema, doctorsFee, invoices, labResults, insertMessageTemplateSchema, passwordResetTokens, saasSubscriptions, organizationIntegrations, insertTreatmentSchema, insertTreatmentsInfoSchema, InsertSaaSSubscription } from "../shared/schema";
 import * as schema from "../shared/schema";
 import { db, pool } from "./db";
 import { and, eq, sql, desc, isNull, isNotNull, or, gte, lte, ne } from "drizzle-orm";
@@ -15255,39 +15255,57 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         return res.status(500).json({ error: "Stripe is not configured" });
       }
 
-      const { planId, planName, amount } = req.body;
-      const organizationId = req.organizationId || 1;
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
 
-      // Get the base URL for success/cancel redirects
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const organizationId = req.organizationId;
+      if (!organizationId) {
+        return res.status(400).json({ error: "Organization context missing" });
+      }
+
+      const planId = Number(req.body.planId);
+      if (Number.isNaN(planId)) {
+        return res.status(400).json({ error: "Invalid plan ID" });
+      }
+
+      const pkg = await storage.getPackageById(planId);
+      if (!pkg) {
+        return res.status(404).json({ error: "Subscription package not found" });
+      }
+
+      const priceId = (req.body.stripePriceId as string) || pkg.stripePriceId;
+      if (!priceId) {
+        return res.status(400).json({ error: "Stripe price ID is missing for this package" });
+      }
+
+      const userRecord = await storage.getUser(req.user.id, req.user.organizationId);
+      if (!userRecord) {
+        return res.status(404).json({ error: "User record missing" });
+      }
+
+      const customerId = await ensureStripeCustomer(stripe, userRecord, organizationId);
+
+      const protocol = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers.host;
       const baseUrl = `${protocol}://${host}`;
 
-      // Create Stripe Checkout Session
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
+        mode: "subscription",
+        customer: customerId,
         line_items: [
           {
-            price_data: {
-              currency: 'gbp',
-              product_data: {
-                name: planName || `Subscription Plan ${planId}`,
-                description: `Monthly subscription to ${planName || 'Cura EMR'}`,
-              },
-              unit_amount: Math.round(amount * 100), // Convert pounds to pence
-              recurring: {
-                interval: 'month',
-              },
-            },
+            price: priceId,
             quantity: 1,
           },
         ],
-        mode: 'subscription',
+        payment_method_types: ["card"],
         success_url: `${baseUrl}/subscription?success=true&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${baseUrl}/subscription?canceled=true`,
         metadata: {
-          planId: planId.toString(),
+          packageId: pkg.id.toString(),
           organizationId: organizationId.toString(),
+          userId: req.user.id.toString(),
         },
       });
 
@@ -15296,6 +15314,214 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       console.error("Error creating Stripe checkout session:", error);
       res.status(500).json({ error: error.message || "Failed to create checkout session" });
     }
+  });
+
+  const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+
+  async function ensureStripeCustomer(
+    stripeClient: Stripe,
+    user: User,
+    organizationId: number,
+  ): Promise<string> {
+    if (user.stripeCustomerId) {
+      return user.stripeCustomerId;
+    }
+
+    const customer = await stripeClient.customers.create({
+      email: user.email,
+      metadata: {
+        organizationId: organizationId.toString(),
+        userId: user.id.toString(),
+      },
+    });
+
+    await storage.updateUser(user.id, organizationId, {
+      stripeCustomerId: customer.id,
+    });
+
+    return customer.id;
+  }
+
+  async function upsertSubscriptionFromStripe(
+    stripeSubscription: Stripe.Subscription,
+    organizationId: number,
+    packageId: number,
+  ): Promise<any> {
+    if (!organizationId || !packageId) {
+      throw new Error("Missing context to persist Stripe subscription");
+    }
+
+    const payload: InsertSaaSSubscription = {
+      organizationId,
+      packageId,
+      status: stripeSubscription.status,
+      paymentStatus: ["active", "trialing"].includes(stripeSubscription.status) ? "paid" : "pending",
+      currentPeriodStart: stripeSubscription.current_period_start
+        ? new Date(stripeSubscription.current_period_start * 1000)
+        : new Date(),
+      currentPeriodEnd: stripeSubscription.current_period_end
+        ? new Date(stripeSubscription.current_period_end * 1000)
+        : new Date(),
+      cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
+      stripeSubscriptionId: stripeSubscription.id,
+      metadata: {
+        ...stripeSubscription.metadata,
+        latestInvoiceId: stripeSubscription.latest_invoice?.toString(),
+      },
+    };
+
+    const existing = await storage.getSaaSSubscriptionByStripeId(stripeSubscription.id);
+    if (existing) {
+      await storage.updateSaaSSubscription(existing.id, payload);
+      return existing;
+    }
+
+    return storage.createSaaSSubscription(payload);
+  }
+
+  async function handleInvoiceSuccess(invoice: Stripe.Invoice) {
+    const stripeSubscriptionId = typeof invoice.subscription === "string"
+      ? invoice.subscription
+      : invoice.subscription?.id;
+    if (!stripeSubscriptionId) return;
+
+    const subscription = await storage.getSaaSSubscriptionByStripeId(stripeSubscriptionId);
+    if (!subscription) return;
+
+    if (invoice.period_start) {
+      await storage.updateSaaSSubscription(subscription.id, {
+        status: "active",
+        paymentStatus: "paid",
+        currentPeriodStart: new Date(invoice.period_start * 1000),
+        currentPeriodEnd: invoice.period_end ? new Date(invoice.period_end * 1000) : subscription.currentPeriodEnd,
+      });
+    } else {
+      await storage.updateSaaSSubscription(subscription.id, {
+        status: "active",
+        paymentStatus: "paid",
+      });
+    }
+
+    const periodStart = invoice.period_start ? new Date(invoice.period_start * 1000) : subscription.currentPeriodStart;
+    const periodEnd = invoice.period_end ? new Date(invoice.period_end * 1000) : subscription.currentPeriodEnd;
+
+    await storage.createSaasPayment({
+      organizationId: subscription.organizationId,
+      subscriptionId: subscription.id,
+      invoiceNumber: invoice.number || invoice.id,
+      amount: ((invoice.amount_paid ?? invoice.total ?? 0) / 100).toFixed(2),
+      currency: (invoice.currency || "gbp").toUpperCase(),
+      paymentMethod: "stripe",
+      paymentStatus: "completed",
+      paymentDate: invoice.status_transitions?.paid_at
+        ? new Date(invoice.status_transitions.paid_at * 1000)
+        : new Date(),
+      dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : new Date(),
+      periodStart,
+      periodEnd,
+      paymentProvider: "stripe",
+      metadata: {
+        stripeInvoiceId: invoice.id,
+        stripeSubscriptionId,
+        stripeCheckoutSessionId: invoice.checkout_session?.toString(),
+      },
+      description: invoice.description || `Stripe invoice ${invoice.number || invoice.id}`,
+    });
+  }
+
+  async function handleInvoiceFailure(invoice: Stripe.Invoice) {
+    const stripeSubscriptionId = typeof invoice.subscription === "string"
+      ? invoice.subscription
+      : invoice.subscription?.id;
+    if (!stripeSubscriptionId) return;
+
+    const subscription = await storage.getSaaSSubscriptionByStripeId(stripeSubscriptionId);
+    if (!subscription) return;
+
+    await storage.updateSaaSSubscription(subscription.id, {
+      status: "past_due",
+      paymentStatus: "failed",
+    });
+  }
+
+  app.post("/api/stripe/webhooks", express.raw({ type: "application/json" }), async (req, res) => {
+    if (!stripe) {
+      return res.status(500).send("Stripe not configured");
+    }
+
+    const signature = req.headers["stripe-signature"] as string | undefined;
+    if (!signature) {
+      return res.status(400).send("Missing Stripe signature");
+    }
+
+    if (!STRIPE_WEBHOOK_SECRET) {
+      return res.status(500).send("Stripe webhook secret not configured");
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
+    } catch (error: any) {
+      console.error("Stripe webhook signature verification failed:", error);
+      return res.status(400).send("Webhook signature mismatch");
+    }
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object as Stripe.Checkout.Session;
+          const packageId = Number(session.metadata?.packageId || session.metadata?.planId);
+          const organizationId = Number(session.metadata?.organizationId);
+          if (!packageId || !organizationId || !session.subscription) {
+            break;
+          }
+          const stripeSubscription = await stripe.subscriptions.retrieve(session.subscription.toString());
+          await upsertSubscriptionFromStripe(stripeSubscription, organizationId, packageId);
+          break;
+        }
+        case "customer.subscription.updated": {
+          const stripeSubscription = event.data.object as Stripe.Subscription;
+          const existing = await storage.getSaaSSubscriptionByStripeId(stripeSubscription.id);
+          if (existing) {
+            await storage.updateSaaSSubscription(existing.id, {
+              status: stripeSubscription.status,
+              paymentStatus: ["active", "trialing"].includes(stripeSubscription.status) ? "paid" : "pending",
+              currentPeriodStart: stripeSubscription.current_period_start
+                ? new Date(stripeSubscription.current_period_start * 1000)
+                : existing.currentPeriodStart,
+              currentPeriodEnd: stripeSubscription.current_period_end
+                ? new Date(stripeSubscription.current_period_end * 1000)
+                : existing.currentPeriodEnd,
+              cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
+            });
+          } else if (stripeSubscription.metadata?.packageId && stripeSubscription.metadata?.organizationId) {
+            await upsertSubscriptionFromStripe(
+              stripeSubscription,
+              Number(stripeSubscription.metadata.organizationId),
+              Number(stripeSubscription.metadata.packageId),
+            );
+          }
+          break;
+        }
+        case "invoice.payment_succeeded": {
+          const invoice = event.data.object as Stripe.Invoice;
+          await handleInvoiceSuccess(invoice);
+          break;
+        }
+        case "invoice.payment_failed": {
+          const invoice = event.data.object as Stripe.Invoice;
+          await handleInvoiceFailure(invoice);
+          break;
+        }
+        default:
+          break;
+      }
+    } catch (error) {
+      console.error("Error processing Stripe webhook:", error);
+      return res.status(500).send("Failed to process webhook");
+    }
+
+    res.json({ received: true });
   });
 
   // PayPal Routes - Real PayPal Integration (conditional on credentials)

@@ -894,7 +894,7 @@ export function NewAppointmentModal({ isOpen, onClose, onAppointmentCreated }: N
                             </SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="" disabled>
+                          <SelectItem value="no-roles" disabled>
                             No provider roles available
                           </SelectItem>
                         )}
@@ -943,13 +943,13 @@ export function NewAppointmentModal({ isOpen, onClose, onAppointmentCreated }: N
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {availableTreatments.length === 0 ? (
-                            <SelectItem value="" disabled>
-                              {user?.role === "doctor"
-                                ? "No treatments assigned to your role"
-                                : "No treatments available"}
-                            </SelectItem>
-                          ) : (
+                        {availableTreatments.length === 0 ? (
+                          <SelectItem value="no-treatments" disabled>
+                            {user?.role === "doctor"
+                              ? "No treatments assigned to your role"
+                              : "No treatments available"}
+                          </SelectItem>
+                        ) : (
                             availableTreatments.map((treatment: any) => (
                               <SelectItem key={`treatment-${treatment.id}`} value={treatment.id.toString()}>
                                 <div className="flex justify-between">

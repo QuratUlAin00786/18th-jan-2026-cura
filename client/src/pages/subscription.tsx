@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/common/loading-spinner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Crown, Users, Calendar, Zap, Check, X, Package, Heart, Brain, Shield, Stethoscope, Phone, FileText, Activity, Pill, UserCheck, TrendingUp, Download, CreditCard, Printer } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Crown, Users, Calendar, Zap, Check, X, Package, Heart, Brain, Shield, Stethoscope, Phone, FileText, Activity, Pill, UserCheck, TrendingUp, Download, CreditCard, Printer, XCircle } from "lucide-react";
 import { PaymentMethodDialog } from "@/components/payment-method-dialog";
 import { getTenantSubdomain } from "@/lib/queryClient";
 import InvoiceTemplate from "@/pages/saas/components/InvoiceTemplate";
@@ -125,9 +126,16 @@ export default function Subscription() {
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [isStripeLoading, setIsStripeLoading] = useState(false);
+  const [stripeAlertOpen, setStripeAlertOpen] = useState(false);
+  const [stripeAlertMessage, setStripeAlertMessage] = useState("");
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   const handleStripeCheckout = async (plan: any) => {
+    if (!plan.stripePriceId) {
+      setStripeAlertMessage("Stripe price ID is missing for the selected plan.");
+      setStripeAlertOpen(true);
+      return;
+    }
     setIsStripeLoading(true);
     try {
       const token = localStorage.getItem('auth_token');
@@ -147,7 +155,7 @@ export default function Subscription() {
         body: JSON.stringify({
           planId: plan.id,
           planName: plan.name,
-          amount: plan.price
+          stripePriceId: plan.stripePriceId
         })
       });
 
@@ -264,7 +272,8 @@ export default function Subscription() {
     userLimit: pkg.features?.maxUsers || 0,
     popular: pkg.name.toLowerCase().includes('professional') || pkg.name.toLowerCase().includes('pro'),
     features: formatPackageFeatures(pkg.features),
-    notIncluded: [] as string[] // Database doesn't store not-included features
+    notIncluded: [] as string[], // Database doesn't store not-included features
+    stripePriceId: pkg.stripePriceId || "",
   }));
 
   // Transform database add-ons to component format for "Add-on Packages" section
@@ -319,6 +328,18 @@ export default function Subscription() {
       />
       <div className="w-full flex-1 overflow-auto bg-white dark:bg-gray-900 px-4 lg:px-6 py-6">
         <div className="space-y-6">
+          {subscription?.status === "active" && (
+            <Alert variant="destructive" className="flex items-start gap-3 pb-2">
+              <XCircle className="h-5 w-5 text-destructive" />
+              <div>
+                <AlertTitle className="text-sm">Subscription active</AlertTitle>
+                <AlertDescription className="text-sm text-muted-foreground">
+                  Activated: {formatDateTime(subscription.currentPeriodStart ?? subscription.createdAt)} ·
+                  Expires: {formatDateTime(subscription.expiresAt ?? subscription.nextBillingAt)}
+                </AlertDescription>
+              </div>
+            </Alert>
+          )}
           {/* Current Subscription */}
           {subscription && (
             <Card className="border border-gray-200 dark:border-gray-700">
@@ -914,6 +935,20 @@ export default function Subscription() {
           )}
         </DialogContent>
       </Dialog>
+    
+    <Dialog open={stripeAlertOpen} onOpenChange={setStripeAlertOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Stripe Price Required</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <p className="text-sm text-gray-700">{stripeAlertMessage}</p>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={() => setStripeAlertOpen(false)}>OK</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Trash } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 export type FieldType = "text" | "textarea" | "number" | "email" | "date" | "checkbox" | "radio";
 
@@ -27,6 +28,7 @@ export interface FieldInput {
   required: boolean;
   placeholder?: string;
   options?: string[];
+  optionsInput?: string;
 }
 
 export interface SectionInput {
@@ -52,6 +54,7 @@ const createField = (type: FieldType): FieldInput => ({
   required: false,
   placeholder: "",
   options: type === "checkbox" || type === "radio" ? ["Option 1", "Option 2"] : [],
+  optionsInput: type === "checkbox" || type === "radio" ? "Option 1, Option 2" : "",
 });
 
 export interface FormBuilderLoadPayload {
@@ -74,6 +77,7 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
   const [sections, setSections] = useState<SectionInput[]>([
     { id: `section_${Date.now()}`, title: "General", fields: [] },
   ]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const previewSections = useMemo(
     () =>
       sections.map((section, sectionIndex) => ({
@@ -87,6 +91,16 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
     [sections],
   );
   const hasPreviewContent = previewSections.some((section) => section.fields.length > 0);
+
+  const { user } = useAuth();
+  const metadata = useMemo(() => {
+    if (!user) return { source: "dynamic-form-builder" };
+    return {
+      source: "dynamic-form-builder",
+      userId: user.id,
+      userEmail: user.email,
+    };
+  }, [user]);
 
   const mutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
@@ -137,6 +151,15 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
     );
   };
 
+  const clearFieldError = (fieldId: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldId]) return prev;
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
+  };
+
   const updateField = (sectionId: string, fieldId: string, updates: Partial<FieldInput>) => {
     setSections((prev) =>
       prev.map((section) => {
@@ -149,6 +172,7 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
         };
       }),
     );
+    clearFieldError(fieldId);
   };
 
   const removeSection = (sectionId: string) => {
@@ -172,7 +196,18 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
     setTitle(loadForm.title ?? "");
     setDescription(loadForm.description ?? "");
     if (loadForm.sections && loadForm.sections.length) {
-      setSections(loadForm.sections);
+      setSections(
+        loadForm.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) => ({
+            ...field,
+            optionsInput:
+              field.options?.length && !field.optionsInput
+                ? field.options.join(", ")
+                : field.optionsInput ?? "",
+          })),
+        })),
+      );
     } else {
       setSections([{ id: `section_${Date.now()}`, title: "General", fields: [] }]);
     }
@@ -183,7 +218,8 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
     () => ({
       title: title.trim() || "Untitled form",
       description: description.trim(),
-      sections: sections.map((section, sectionIndex) => ({
+    metadata,
+    sections: sections.map((section, sectionIndex) => ({
         title: section.title || `Section ${sectionIndex + 1}`,
         order: sectionIndex,
         fields: section.fields.map((field, fieldIndex) => ({
@@ -191,13 +227,61 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
           fieldType: field.type,
           required: field.required,
           placeholder: field.placeholder || undefined,
-          fieldOptions: field.options?.filter(Boolean) ?? [],
+              fieldOptions: (field.optionsInput ?? (field.options ?? []).join(", "))
+                .split(",")
+                .map((opt) => opt.trim())
+                .filter(Boolean),
           order: fieldIndex,
         })),
       })),
     }),
     [sections, title, description],
   );
+
+  const validateForm = () => {
+    for (const section of sections) {
+      for (const field of section.fields) {
+        if (!field.label.trim()) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            [field.id]: "Label is required.",
+          }));
+          toast({
+            title: "Missing field label",
+            description: "Each field needs a label so clinicians know what information to collect.",
+            variant: "destructive",
+          });
+          return false;
+        }
+
+        if (field.type === "checkbox" || field.type === "radio") {
+          const options = (field.optionsInput ?? (field.options ?? []).join(", "))
+            .split(",")
+            .map((opt) => opt.trim())
+            .filter(Boolean);
+          if (options.length < 2) {
+            setFieldErrors((prev) => ({
+              ...prev,
+              [field.id]: "Please add at least two comma-separated options (e.g. Male, Female).",
+            }));
+            toast({
+              title: "Configure options",
+              description: "Checkbox and radio fields need at least two comma-separated options (e.g. Male, Female).",
+              variant: "destructive",
+            });
+            return false;
+          }
+        }
+      }
+    }
+    setFieldErrors({});
+    return true;
+  };
+
+  const handleSaveForm = () => {
+    if (!validateForm()) return;
+    mutation.mutate(payload);
+  };
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -251,12 +335,19 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
                   <div key={field.id} className="space-y-2">
                     <div className="flex flex-wrap items-end gap-3">
                       <div className="flex-1 min-w-[210px] space-y-1">
-                        <Label>Label</Label>
+                        <Label className={fieldErrors[field.id] ? "text-destructive" : ""}>
+                          Label
+                        </Label>
                         <Input
                           value={field.label}
                           onChange={(event) => updateField(section.id, field.id, { label: event.target.value })}
                           placeholder="Field label"
                         />
+                        {fieldErrors[field.id] && (
+                          <p className="text-[11px] text-destructive mt-1">
+                            {fieldErrors[field.id]}
+                          </p>
+                        )}
                       </div>
                       <div className="w-full max-w-[260px] min-w-[180px] space-y-1">
                         <Label>Type</Label>
@@ -299,16 +390,26 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
                     </div>
                     {(field.type === "checkbox" || field.type === "radio") && (
                       <div className="space-y-1">
-                        <Label>Options (comma separated)</Label>
+                        <Label className={fieldErrors[field.id] ? "text-destructive" : ""}>
+                          Options (comma separated)
+                        </Label>
                         <Textarea
                           rows={2}
-                          value={(field.options ?? []).join(", ")}
+                          value={field.optionsInput ?? (field.options ?? []).join(", ")}
                           onChange={(event) =>
                             updateField(section.id, field.id, {
-                              options: event.target.value.split(",").map((opt) => opt.trim()),
+                              optionsInput: event.target.value,
                             })
                           }
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Enter at least two comma-separated values that will render as individual choices (e.g. Male, Female, Other). Empty values will be ignored.
+                        </p>
+                        {fieldErrors[field.id] && (
+                          <p className="text-[11px] text-destructive mt-1">
+                            {fieldErrors[field.id]}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -337,7 +438,7 @@ export function FormBuilder({ loadForm, onLoadComplete }: FormBuilderProps = {})
           </Button>
           <Button
             disabled={mutation.isPending}
-            onClick={() => mutation.mutate(payload)}
+            onClick={handleSaveForm}
           >
             {mutation.isPending ? "Saving…" : "Save form"}
           </Button>

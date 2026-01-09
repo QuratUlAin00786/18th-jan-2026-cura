@@ -295,21 +295,24 @@ export function FormFill({
                               render={({ field: controllerField }) => (
                                 <div className="space-y-2">
                                   {field.fieldOptions?.map((option: string) => (
-                                    <Checkbox
-                                      key={option}
-                                      checked={controllerField.value?.includes(option)}
-                                      onCheckedChange={(checked) => {
-                                        const next = controllerField.value ?? [];
-                                        const exists = next.includes(option);
-                                        if (checked && !exists) {
-                                          controllerField.onChange([...next, option]);
-                                        } else if (!checked && exists) {
-                                          controllerField.onChange(next.filter((item) => item !== option));
-                                        }
-                                      }}
-                                    >
-                                      {option}
-                                    </Checkbox>
+                            <label key={option} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={controllerField.value?.includes(option)}
+                                onCheckedChange={(checked) => {
+                                  const next = controllerField.value ?? [];
+                                  const exists = next.includes(option);
+                                  if (checked && !exists) {
+                                    controllerField.onChange([...next, option]);
+                                  } else if (!checked && exists) {
+                                    controllerField.onChange(next.filter((item) => item !== option));
+                                  }
+                                }}
+                                className="h-4 w-4"
+                              />
+                              <span className="text-sm text-slate-900 dark:text-slate-100">
+                                {option}
+                              </span>
+                            </label>
                                   ))}
                                 </div>
                               )}

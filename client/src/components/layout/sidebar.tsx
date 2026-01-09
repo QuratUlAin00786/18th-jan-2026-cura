@@ -17,7 +17,6 @@ import {
   FileImage,
   Receipt,
   BarChart3,
-  Zap,
   Globe,
   MessageSquare,
   Link as LinkIcon,
@@ -99,7 +98,6 @@ const ALL_NAVIGATION = [
     icon: BarChart3,
     module: "analytics",
   },
-  { name: "Automation", href: "/automation", icon: Zap, module: "automation" },
   {
     name: "Clinical Decision Support",
     href: "/clinical-decision-support",

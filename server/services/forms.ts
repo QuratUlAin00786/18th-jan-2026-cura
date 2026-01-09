@@ -833,16 +833,11 @@ export class FormService {
       { text: `Patient: ${patientName}`, size: 12 },
       { text: `Submitted: ${response.submittedAt.toISOString()}`, size: 11 },
     ];
-    const sectionsHeight = form.sections.reduce(
-      (sum, section) => sum + 16 + section.fields.length * 14 + 8,
-      0,
-    );
     const heroPadding = 24;
     const heroHeight =
       heroPadding * 2 +
       42 +
-      detailLines.reduce((sum, line) => sum + line.size + 6, 0) +
-      sectionsHeight;
+      detailLines.reduce((sum, line) => sum + line.size + 6, 0);
     const heroMargin = 14;
     const heroWidth = pageWidth - pageMargin * 2 - 100;
     const heroX = pageMargin + 50;
@@ -875,46 +870,85 @@ export class FormService {
       infoY -= info.size + 6;
     }
 
-    const boxPadding = 8;
-    const boxX = heroX + heroPadding + 6;
-    const boxWidth = heroWidth - heroPadding * 2 - 12;
-    let sectionsY = infoY - 8;
-    for (const section of form.sections) {
-      const sectionHeight = boxPadding * 2 + 14 + section.fields.length * 15;
-      const boxTop = sectionsY;
-      const boxBottom = boxTop - sectionHeight;
-      page.drawRectangle({
-        x: boxX,
-        y: boxBottom,
-        width: boxWidth,
-        height: sectionHeight,
-        color: rgb(1, 1, 1),
-      });
-
-      const titleY = boxTop - boxPadding - 2;
-      page.drawText(section.title, {
-        x: boxX + 10,
-        y: titleY,
-        size: 12,
-        font: boldFont,
-        color: rgb(0.08, 0.08, 0.18),
-      });
-      let fieldY = titleY - 20;
-      for (const field of section.fields) {
-        const value = this.formatAnswerValue(answersMap.get(field.id));
-        page.drawText(`${field.label}: ${value || "—"}`, {
-          x: boxX + 18,
-          y: fieldY,
-          size: 12,
-          font,
-          color: rgb(0.19, 0.19, 0.26),
-        });
-        fieldY -= 15;
-      }
-      sectionsY = boxBottom - 10;
-    }
-
     yPosition = heroY - heroMargin;
+
+    const columnsX = heroX + heroPadding;
+    const labelColumnWidth = 140;
+    const columnGap = 18;
+    const valueColumnX = columnsX + labelColumnWidth + columnGap;
+    const maxValueWidth =
+      heroX + heroWidth - heroPadding - valueColumnX - columnGap;
+
+    const ensureYSpace = (requiredHeight: number) => {
+      if (yPosition - requiredHeight < bottomThreshold) {
+        moveToNextPage();
+        yPosition = pageHeight - pageMargin;
+      }
+    };
+
+    for (const section of form.sections) {
+      const sectionSpacing = section.title === "General" ? 6 : 16;
+      ensureYSpace(sectionSpacing + 20);
+      yPosition -= sectionSpacing;
+
+      const titleY = yPosition;
+      page.drawText(section.title, {
+        x: columnsX,
+        y: titleY,
+        size: 13,
+        font: boldFont,
+        color: rgb(0.07, 0.07, 0.16),
+      });
+      yPosition = titleY - 16;
+
+      for (const field of section.fields) {
+        const valueRaw = this.formatAnswerValue(answersMap.get(field.id));
+        const value = valueRaw || "—";
+        const wrappedLines = wrapTextLines(value, 11, maxValueWidth);
+        const valueFontSize = 11;
+        const valueLineSpacing = 14;
+        const rowHeight = Math.max(valueLineSpacing * wrappedLines.length, valueFontSize + 6);
+        ensureYSpace(rowHeight + 6);
+
+        const labelY = yPosition;
+        page.drawText(field.label, {
+          x: columnsX,
+          y: labelY,
+          size: 12,
+          font: boldFont,
+          color: rgb(0.15, 0.15, 0.27),
+        });
+
+        const badgePaddingX = 6;
+        const badgePaddingY = 3;
+        const badgeColor = rgb(0.93, 0.94, 0.99);
+        let valueY = labelY;
+        const badgeHeight = valueFontSize + badgePaddingY * 2;
+        for (const line of wrappedLines) {
+          const textWidth = font.widthOfTextAtSize(line, valueFontSize);
+          const badgeWidth = textWidth + badgePaddingX * 2;
+          const badgeY = valueY - badgePaddingY;
+          page.drawRectangle({
+            x: valueColumnX - badgePaddingX,
+            y: badgeY,
+            width: badgeWidth,
+            height: badgeHeight,
+            color: badgeColor,
+            borderRadius: 3,
+          });
+          page.drawText(line, {
+            x: valueColumnX,
+            y: valueY,
+            size: valueFontSize,
+            font,
+            color: rgb(0.07, 0.07, 0.16),
+          });
+          valueY -= valueLineSpacing;
+        }
+        yPosition = labelY - rowHeight - 10;
+      }
+      yPosition -= 10;
+    }
 
     // Content rendered inside the hero area above; no further layout necessary
 

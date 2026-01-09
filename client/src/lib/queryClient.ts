@@ -3,7 +3,13 @@ import { isPermissionError, showPermissionDenied } from "./permission-error-hand
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
-const DEFAULT_DEV_API = "http://localhost:1100";
+const DEFAULT_DEV_API = (() => {
+  if (typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "https" : "http";
+    return `${protocol}://localhost:1100`;
+  }
+  return "http://localhost:1100";
+})();
 
 function buildUrl(path: string) {
   if (path.startsWith("http")) {

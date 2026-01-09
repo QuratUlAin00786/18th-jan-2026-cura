@@ -24,6 +24,7 @@ export const saasPackages = pgTable("saas_packages", {
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   billingCycle: varchar("billing_cycle", { length: 20 }).notNull().default("monthly"), // monthly, yearly
+  stripePriceId: varchar("stripe_price_id", { length: 64 }),
   features: jsonb("features").$type<{
     maxUsers?: number;
     maxPatients?: number;
@@ -47,6 +48,7 @@ export const saasSubscriptions = pgTable("saas_subscriptions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull(),
   packageId: integer("package_id").notNull(),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 64 }),
   status: varchar("status", { length: 20 }).notNull().default("active"), // active, trial, expired, cancelled
   paymentStatus: varchar("payment_status", { length: 20 }).notNull().default("trial"), // paid, unpaid, failed, pending, trial
   currentPeriodStart: timestamp("current_period_start").notNull(),
@@ -206,6 +208,7 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull(),
   email: text("email").notNull(),
+  stripeCustomerId: varchar("stripe_customer_id", { length: 64 }),
   username: text("username").notNull(),
   passwordHash: text("password_hash").notNull(),
   firstName: text("first_name").notNull(),

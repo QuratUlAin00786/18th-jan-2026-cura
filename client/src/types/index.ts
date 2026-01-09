@@ -138,6 +138,9 @@ export interface Subscription {
   monthlyPrice?: number;
   trialEndsAt?: string;
   nextBillingAt?: string;
+  currentPeriodStart?: string;
+  expiresAt?: string;
+  stripeSubscriptionId?: string | null;
   features: {
     aiInsights?: boolean;
     advancedReporting?: boolean;

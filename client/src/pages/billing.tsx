@@ -2806,7 +2806,7 @@ function PricingManagementDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   {treatmentsInfoList.length === 0 ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="no-treatments-configured" disabled>
                       No treatments configured
                     </SelectItem>
                   ) : (

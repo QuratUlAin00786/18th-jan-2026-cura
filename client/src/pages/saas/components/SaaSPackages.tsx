@@ -107,6 +107,7 @@ export default function SaaSPackages() {
       name: pkg?.name || '',
       description: pkg?.description || '',
       price: pkg?.price || '',
+      stripePriceId: pkg?.stripePriceId || '',
       billingCycle: pkg?.billingCycle || 'monthly',
       features: {
         maxUsers: pkg?.features?.maxUsers || 10,
@@ -154,6 +155,18 @@ export default function SaaSPackages() {
               required
             />
           </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="stripePriceId">Stripe Price ID</Label>
+          <Input
+            id="stripePriceId"
+            value={formData.stripePriceId}
+            onChange={(e) => setFormData({ ...formData, stripePriceId: e.target.value })}
+            placeholder="price_1Lh1A2..."
+          />
+          <p className="text-xs text-gray-500">
+            Enter the Stripe Price ID (price_xxx) that represents this subscription in Stripe.
+          </p>
         </div>
 
         <div className="space-y-2">

@@ -1377,7 +1377,9 @@ const getReminderEntries = (metadata?: any) => {
                         </SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="">No organizations</SelectItem>
+                      <SelectItem value="no-organizations" disabled>
+                        No organizations
+                      </SelectItem>
                     )}
                   </SelectContent>
                 </Select>

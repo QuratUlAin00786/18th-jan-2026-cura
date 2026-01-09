@@ -6536,7 +6536,7 @@ export default function ImagingPage() {
             <DialogTitle>Summary</DialogTitle>
           </DialogHeader>
           {summaryData && (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="border rounded-lg p-4">
                 <h5 className="font-semibold mb-3">Imaging Details</h5>
                 <div className="grid grid-cols-2 gap-3 text-sm">

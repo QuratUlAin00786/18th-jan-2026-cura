@@ -1,7 +1,7 @@
 import { ChangeEvent, useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, getTenantSubdomain } from "@/lib/queryClient";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import type { User, Patient } from "@shared/schema";
@@ -89,6 +89,7 @@ import {
   CheckCircle,
   RefreshCw,
   ChevronsUpDown,
+  Trash2,
 } from "lucide-react";
 
 interface FormFieldSummary {
@@ -889,6 +890,8 @@ export default function Forms() {
   const [showShareLinksDialog, setShowShareLinksDialog] = useState(false);
   const [formToDelete, setFormToDelete] = useState<FormSummary | null>(null);
   const [showDeleteFormDialog, setShowDeleteFormDialog] = useState(false);
+  const [filledFormToDelete, setFilledFormToDelete] = useState<any>(null);
+  const [showDeleteFilledFormDialog, setShowDeleteFilledFormDialog] = useState(false);
   const [formLoadPayload, setFormLoadPayload] = useState<FormBuilderLoadPayload | undefined>(undefined);
   type FormsTab = "dynamic" | "saved" | "filled" | "forms" | "editor";
   const userIsPatient = Boolean(user && user.role === "patient");
@@ -2222,15 +2225,20 @@ Coverage Details: [Insurance Coverage]`;
     }
   };
 
+  const tenantSubdomainForApi = localStorage.getItem("user_subdomain") || "";
+  const authToken = localStorage.getItem("auth_token");
+  const subdomainHeaders = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${authToken}`,
+    "X-Tenant-Subdomain": tenantSubdomainForApi,
+  };
+
   // Fetch doctors from database
   const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
     queryFn: async () => {
       const response = await fetch("/api/users", {
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        },
+        headers: subdomainHeaders,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
@@ -2265,10 +2273,7 @@ Coverage Details: [Insurance Coverage]`;
     queryKey: ["/api/patients"],
     queryFn: async () => {
       const response = await fetch("/api/patients", {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        },
+        headers: subdomainHeaders,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
@@ -2335,6 +2340,7 @@ Coverage Details: [Insurance Coverage]`;
       title: "Form loaded",
       description: `“${form.title}” is now editable in the builder.`,
     });
+    setActiveFormsTab("dynamic");
   };
 
   const handleViewFormResponses = async (form: FormSummary) => {
@@ -2547,11 +2553,43 @@ Coverage Details: [Insurance Coverage]`;
     },
   });
 
+  const deleteFilledFormMutation = useMutation({
+    mutationFn: async (doc: any) => {
+      const response = await apiRequest("DELETE", `/api/documents/${doc.id}`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || "Failed to delete filled form PDF");
+      }
+      return doc;
+    },
+    onSuccess(doc) {
+      toast({
+        title: "PDF deleted",
+        description: `Removed ${doc.name || "filled form"} from records.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["filledForms"] });
+    },
+    onError(error) {
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Unable to delete the filled form PDF",
+        variant: "destructive",
+      });
+    },
+  });
+
   const confirmDeleteForm = () => {
     if (!formToDelete) return;
     deleteFormMutation.mutate(formToDelete.id);
     setShowDeleteFormDialog(false);
     setFormToDelete(null);
+  };
+
+  const confirmDeleteFilledForm = () => {
+    if (!filledFormToDelete) return;
+    deleteFilledFormMutation.mutate(filledFormToDelete);
+    setShowDeleteFilledFormDialog(false);
+    setFilledFormToDelete(null);
   };
 
   // Filter users to get only doctors and patients
@@ -2749,6 +2787,11 @@ const formIds = useMemo(
     });
   }, [filledForms, filterFormName, filterPatientEmail, filterPatientId, filterDate, filterFormId]);
 
+  const openDeleteFilledFormDialog = (doc: any) => {
+    setFilledFormToDelete(doc);
+    setShowDeleteFilledFormDialog(true);
+  };
+
   const filledFormCardContent = (doc: any) => {
   const link = doc.metadata?.pdfPath ? `/${doc.metadata.pdfPath}` : null;
     const creatorInfo = resolveFormCreator(doc);
@@ -2794,6 +2837,15 @@ const formIds = useMemo(
             Clinic: {doc.metadata.headerName}
           </span>
         )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => openDeleteFilledFormDialog(doc)}
+          className="text-rose-500 hover:bg-rose-50/70 dark:text-rose-400 dark:hover:bg-rose-500/10"
+          title="Delete PDF"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
     </>
   );
@@ -2903,7 +2955,8 @@ const formIds = useMemo(
       const response = await fetch("/api/me/preferences", {
         headers: { 
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          Authorization: `Bearer ${authToken}`,
+          "X-Tenant-Subdomain": tenantSubdomainForApi,
         },
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -2935,6 +2988,7 @@ const formIds = useMemo(
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          "X-Tenant-Subdomain": localStorage.getItem("user_subdomain") || "",
         },
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -3005,7 +3059,8 @@ const formIds = useMemo(
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          Authorization: `Bearer ${authToken}`,
+          "X-Tenant-Subdomain": tenantSubdomainForApi,
         },
         body: JSON.stringify({
           clinicName: editingClinicInfo.name,
@@ -3883,7 +3938,8 @@ const formIds = useMemo(
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          Authorization: `Bearer ${authToken}`,
+          "X-Tenant-Subdomain": tenantSubdomainForApi,
         },
         body: JSON.stringify({
           clinicName: editingClinicInfo.name || "Clinic",
@@ -7143,6 +7199,15 @@ const formIds = useMemo(
                             >
                               Download
                             </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openDeleteFilledFormDialog(doc)}
+                            className="text-rose-500 hover:bg-rose-50/70 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                            title="Delete PDF"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                           </div>
                           {doc.insurance && (
                             <div className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3">
@@ -7203,16 +7268,57 @@ const formIds = useMemo(
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
-        </div>
-        <Dialog
-          open={showFormShareDialog}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) {
-              closeFormShareDialog();
-            }
-          }}
-        >
+        </Dialog>
+      </div>
+      <Dialog
+        open={showDeleteFilledFormDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFilledFormToDelete(null);
+          }
+          setShowDeleteFilledFormDialog(open);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete filled form PDF</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">
+                {filledFormToDelete?.name || "this filled form"}
+              </span>
+              ? This action removes the stored PDF from the server.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteFilledFormDialog(false);
+                setFilledFormToDelete(null);
+              }}
+              disabled={deleteFilledFormMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteFilledForm}
+              disabled={deleteFilledFormMutation.isPending}
+            >
+              {deleteFilledFormMutation.isPending ? "Deleting..." : "Delete PDF"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={showFormShareDialog}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            closeFormShareDialog();
+          }
+        }}
+      >
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Share form with patient</DialogTitle>
@@ -7235,7 +7341,9 @@ const formIds = useMemo(
                   </SelectTrigger>
                   <SelectContent>
                     {patientsFromTable.length === 0 ? (
-                      <SelectItem value="">No patients available</SelectItem>
+                      <SelectItem value="no-patients" disabled>
+                        No patients available
+                      </SelectItem>
                     ) : (
                       patientsFromTable.map((patient) => (
                         <SelectItem key={patient.id} value={String(patient.id)}>

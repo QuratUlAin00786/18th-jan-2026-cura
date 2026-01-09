@@ -5048,7 +5048,7 @@ export default function PrescriptionsPage() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
             {isFilterActive &&
               filteredPrescriptions.length > 0 &&
               !isPrescriptionSearchActive && (
@@ -5758,7 +5758,7 @@ export default function PrescriptionsPage() {
 
       {/* Send to Pharmacy Dialog */}
       <Dialog open={showPharmacyDialog} onOpenChange={setShowPharmacyDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[650px] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Send Prescription to Halo Health Pharmacy</DialogTitle>
           </DialogHeader>

@@ -466,6 +466,7 @@ export interface IStorage {
   getOrganizationSubscription(organizationId: number): Promise<any>;
   updateOrganizationStatus(organizationId: number, status: string): Promise<any>;
   getAllPackages(): Promise<SaaSPackage[]>;
+  getPackageById(packageId: number): Promise<SaaSPackage | undefined>;
   createPackage(packageData: InsertSaaSPackage): Promise<SaaSPackage>;
   updatePackage(id: number, packageData: Partial<InsertSaaSPackage>): Promise<SaaSPackage>;
   deletePackage(id: number): Promise<any>;
@@ -476,6 +477,7 @@ export interface IStorage {
   suspendUnpaidSubscriptions(): Promise<void>;
   getAllSaaSSubscriptions(): Promise<any[]>;
   createSaaSSubscription(subscriptionData: InsertSaaSSubscription): Promise<any>;
+  getSaaSSubscriptionByStripeId(stripeSubscriptionId: string): Promise<any | null>;
   updateSaaSSubscription(subscriptionId: number, updates: Partial<InsertSaaSSubscription>): Promise<any>;
   deleteSaaSSubscription(subscriptionId: number): Promise<boolean>;
   createPatientInvoice(invoiceData: any): Promise<any>;
@@ -1773,14 +1775,19 @@ export class DatabaseStorage implements IStorage {
           currentUsers: sql<number>`0`.as('currentUsers'),
           monthlyPrice: saasPackages.price,
           trialEndsAt: saasSubscriptions.trialEnd,
+          currentPeriodStart: saasSubscriptions.currentPeriodStart,
           nextBillingAt: saasSubscriptions.currentPeriodEnd,
+          expiresAt: saasSubscriptions.expiresAt,
+          stripeSubscriptionId: saasSubscriptions.stripeSubscriptionId,
           features: saasPackages.features,
           createdAt: saasSubscriptions.createdAt,
           updatedAt: saasSubscriptions.updatedAt,
         })
         .from(saasSubscriptions)
         .leftJoin(saasPackages, eq(saasSubscriptions.packageId, saasPackages.id))
-        .where(eq(saasSubscriptions.organizationId, organizationId));
+        .where(eq(saasSubscriptions.organizationId, organizationId))
+        .orderBy(desc(saasSubscriptions.createdAt))
+        .limit(1);
       
       if (!subscription) return undefined;
       
@@ -6304,6 +6311,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(saasPackages).orderBy(desc(saasPackages.createdAt));
   }
 
+  async getPackageById(packageId: number): Promise<SaaSPackage | undefined> {
+    const [pkg] = await db.select().from(saasPackages).where(eq(saasPackages.id, packageId));
+    return pkg || undefined;
+  }
+
   async getWebsiteVisiblePackages(): Promise<SaaSPackage[]> {
     return await db.select().from(saasPackages)
       .where(and(eq(saasPackages.isActive, true), eq(saasPackages.showOnWebsite, true)))
@@ -6458,6 +6470,7 @@ export class DatabaseStorage implements IStorage {
         END
       `.as('daysRemaining'),
       details: saasSubscriptions.details,
+      stripeSubscriptionId: saasSubscriptions.stripeSubscriptionId,
       createdAt: saasSubscriptions.createdAt,
       updatedAt: saasSubscriptions.updatedAt,
     })
@@ -6465,6 +6478,15 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(organizations, eq(saasSubscriptions.organizationId, organizations.id))
     .leftJoin(saasPackages, eq(saasSubscriptions.packageId, saasPackages.id))
     .orderBy(desc(saasSubscriptions.createdAt));
+  }
+
+  async getSaaSSubscriptionByStripeId(stripeSubscriptionId: string): Promise<any | null> {
+    if (!stripeSubscriptionId) return null;
+    const [subscription] = await db
+      .select()
+      .from(saasSubscriptions)
+      .where(eq(saasSubscriptions.stripeSubscriptionId, stripeSubscriptionId));
+    return subscription || null;
   }
 
   async createSaaSSubscription(subscriptionData: InsertSaaSSubscription): Promise<any> {
@@ -6483,6 +6505,7 @@ export class DatabaseStorage implements IStorage {
     };
 
     const [created] = await db.insert(saasSubscriptions).values(payload).returning();
+    subscriptionCache.invalidate(subscriptionData.organizationId);
     return created;
   }
 
@@ -6502,6 +6525,9 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(saasSubscriptions.id, subscriptionId))
       .returning();
+    if (updated) {
+      subscriptionCache.invalidate(updated.organizationId);
+    }
     return updated || null;
   }
 
