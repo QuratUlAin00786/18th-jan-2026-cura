@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { WebSocketServer, WebSocket } from "ws";
@@ -7129,7 +7129,31 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     try {
       const subscription = await storage.getSubscription(req.tenant!.id);
       if (!subscription) {
-        return res.status(404).json({ error: "Subscription not found" });
+        const defaultSubscription = {
+          id: null,
+          organizationId: req.tenant!.id,
+          plan: null,
+          planName: null,
+          status: "inactive",
+          paymentStatus: "pending",
+          userLimit: 0,
+          currentUsers: 0,
+          monthlyPrice: null,
+          trialEndsAt: null,
+          currentPeriodStart: null,
+          nextBillingAt: null,
+          expiresAt: null,
+          stripeSubscriptionId: null,
+          features: {
+            aiInsights: true,
+            advancedReporting: true,
+            apiAccess: true,
+            whiteLabel: false,
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        return res.json(defaultSubscription);
       }
       res.json(subscription);
     } catch (error) {
@@ -15426,6 +15450,8 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         stripeCheckoutSessionId: invoice.checkout_session?.toString(),
       },
       description: invoice.description || `Stripe invoice ${invoice.number || invoice.id}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
   }
 
@@ -15444,7 +15470,59 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     });
   }
 
-  app.post("/api/stripe/webhooks", express.raw({ type: "application/json" }), async (req, res) => {
+  const processStripeEvent = async (event: Stripe.Event) => {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const packageId = Number(session.metadata?.packageId || session.metadata?.planId);
+        const organizationId = Number(session.metadata?.organizationId);
+        if (!packageId || !organizationId || !session.subscription) {
+          break;
+        }
+        const stripeSubscription = await stripe.subscriptions.retrieve(session.subscription.toString());
+        await upsertSubscriptionFromStripe(stripeSubscription, organizationId, packageId);
+        break;
+      }
+      case "customer.subscription.updated": {
+        const stripeSubscription = event.data.object as Stripe.Subscription;
+        const existing = await storage.getSaaSSubscriptionByStripeId(stripeSubscription.id);
+        if (existing) {
+          await storage.updateSaaSSubscription(existing.id, {
+            status: stripeSubscription.status,
+            paymentStatus: ["active", "trialing"].includes(stripeSubscription.status) ? "paid" : "pending",
+            currentPeriodStart: stripeSubscription.current_period_start
+              ? new Date(stripeSubscription.current_period_start * 1000)
+              : existing.currentPeriodStart,
+            currentPeriodEnd: stripeSubscription.current_period_end
+              ? new Date(stripeSubscription.current_period_end * 1000)
+              : existing.currentPeriodEnd,
+            cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
+          });
+        } else if (stripeSubscription.metadata?.packageId && stripeSubscription.metadata?.organizationId) {
+          await upsertSubscriptionFromStripe(
+            stripeSubscription,
+            Number(stripeSubscription.metadata.organizationId),
+            Number(stripeSubscription.metadata.packageId),
+          );
+        }
+        break;
+      }
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        await handleInvoiceSuccess(invoice);
+        break;
+      }
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        await handleInvoiceFailure(invoice);
+        break;
+      }
+      default:
+        break;
+    }
+  };
+
+  const stripeWebhookHandler = async (req: Request, res: Response) => {
     if (!stripe) {
       return res.status(500).send("Stripe not configured");
     }
@@ -15467,62 +15545,21 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
 
     try {
-      switch (event.type) {
-        case "checkout.session.completed": {
-          const session = event.data.object as Stripe.Checkout.Session;
-          const packageId = Number(session.metadata?.packageId || session.metadata?.planId);
-          const organizationId = Number(session.metadata?.organizationId);
-          if (!packageId || !organizationId || !session.subscription) {
-            break;
-          }
-          const stripeSubscription = await stripe.subscriptions.retrieve(session.subscription.toString());
-          await upsertSubscriptionFromStripe(stripeSubscription, organizationId, packageId);
-          break;
-        }
-        case "customer.subscription.updated": {
-          const stripeSubscription = event.data.object as Stripe.Subscription;
-          const existing = await storage.getSaaSSubscriptionByStripeId(stripeSubscription.id);
-          if (existing) {
-            await storage.updateSaaSSubscription(existing.id, {
-              status: stripeSubscription.status,
-              paymentStatus: ["active", "trialing"].includes(stripeSubscription.status) ? "paid" : "pending",
-              currentPeriodStart: stripeSubscription.current_period_start
-                ? new Date(stripeSubscription.current_period_start * 1000)
-                : existing.currentPeriodStart,
-              currentPeriodEnd: stripeSubscription.current_period_end
-                ? new Date(stripeSubscription.current_period_end * 1000)
-                : existing.currentPeriodEnd,
-              cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
-            });
-          } else if (stripeSubscription.metadata?.packageId && stripeSubscription.metadata?.organizationId) {
-            await upsertSubscriptionFromStripe(
-              stripeSubscription,
-              Number(stripeSubscription.metadata.organizationId),
-              Number(stripeSubscription.metadata.packageId),
-            );
-          }
-          break;
-        }
-        case "invoice.payment_succeeded": {
-          const invoice = event.data.object as Stripe.Invoice;
-          await handleInvoiceSuccess(invoice);
-          break;
-        }
-        case "invoice.payment_failed": {
-          const invoice = event.data.object as Stripe.Invoice;
-          await handleInvoiceFailure(invoice);
-          break;
-        }
-        default:
-          break;
-      }
+      await processStripeEvent(event);
     } catch (error) {
       console.error("Error processing Stripe webhook:", error);
       return res.status(500).send("Failed to process webhook");
     }
 
     res.json({ received: true });
-  });
+  };
+
+  app.post("/api/stripe/webhooks", express.raw({ type: "application/json" }), stripeWebhookHandler);
+  app.post(
+    "/api/stripe/webhook/:destinationId",
+    express.raw({ type: "application/json" }),
+    stripeWebhookHandler,
+  );
 
   // PayPal Routes - Real PayPal Integration (conditional on credentials)
   app.get("/api/paypal/setup", async (req, res) => {
