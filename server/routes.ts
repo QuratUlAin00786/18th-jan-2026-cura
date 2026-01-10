@@ -15333,6 +15333,8 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         },
       });
 
+      console.log("[STRIPE CHECKOUT] Session creation response:", session);
+
       res.json({ url: session.url, sessionId: session.id });
     } catch (error: any) {
       console.error("Error creating Stripe checkout session:", error);

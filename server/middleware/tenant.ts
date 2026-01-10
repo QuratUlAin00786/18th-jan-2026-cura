@@ -59,17 +59,20 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
         try {
           const refererUrl = new URL(referer);
           const pathParts = refererUrl.pathname.split("/").filter(Boolean);
-          const candidate = pathParts[0];
           const reservedPaths = new Set([
             "api", "saas", "forms", "assets", "public",
             "client", "landing", "auth", "legal", "subscriptions",
-            "billing", "dashboard", "patients", "appointments",
-            "prescriptions", "imaging", "messaging", "settings"
+            "subscription", "billing", "dashboard", "patients",
+            "appointments", "prescriptions", "imaging", "messaging",
+            "settings"
           ]);
 
-          if (candidate && !reservedPaths.has(candidate.toLowerCase())) {
-            subdomain = candidate;
-            console.log(`[TENANT-MIDDLEWARE] Inferred subdomain from referer: ${subdomain}`);
+          if (pathParts.length >= 2) {
+            const candidate = pathParts[0];
+            if (candidate && !reservedPaths.has(candidate.toLowerCase())) {
+              subdomain = candidate;
+              console.log(`[TENANT-MIDDLEWARE] Inferred subdomain from referer: ${subdomain}`);
+            }
           }
         } catch (error) {
           console.log("[TENANT-MIDDLEWARE] Failed to parse referer for subdomain:", error);
