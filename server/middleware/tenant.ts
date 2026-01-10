@@ -49,10 +49,40 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
     // Path is already stripped by Express mounting at /api, so we process all paths
     console.log(`[TENANT-MIDDLEWARE] Processing API path: ${req.path} (original URL: ${req.originalUrl})`);
 
-    // Extract subdomain from: header (priority), query param (dev mode), or default to demo
-    // DO NOT use hostname extraction in Replit environment as it extracts replit subdomain instead of tenant
-    let subdomain = req.get("X-Tenant-Subdomain") || req.query.subdomain as string || "demo";
-    console.log(`[TENANT-MIDDLEWARE] Detected subdomain: ${subdomain} from header/query`);
+    // Extract subdomain from header/query/referrer (priority order)
+    // DO NOT use hostname extraction in Replit environment as it extracts replit subdomain instead of tenant.
+    let subdomain = req.get("X-Tenant-Subdomain") || req.query.subdomain as string || "";
+
+    if (!subdomain) {
+      const referer = req.get("referer") || req.get("origin");
+      if (referer) {
+        try {
+          const refererUrl = new URL(referer);
+          const pathParts = refererUrl.pathname.split("/").filter(Boolean);
+          const candidate = pathParts[0];
+          const reservedPaths = new Set([
+            "api", "saas", "forms", "assets", "public",
+            "client", "landing", "auth", "legal", "subscriptions",
+            "billing", "dashboard", "patients", "appointments",
+            "prescriptions", "imaging", "messaging", "settings"
+          ]);
+
+          if (candidate && !reservedPaths.has(candidate.toLowerCase())) {
+            subdomain = candidate;
+            console.log(`[TENANT-MIDDLEWARE] Inferred subdomain from referer: ${subdomain}`);
+          }
+        } catch (error) {
+          console.log("[TENANT-MIDDLEWARE] Failed to parse referer for subdomain:", error);
+        }
+      }
+    }
+
+    if (!subdomain) {
+      subdomain = "demo";
+      console.log(`[TENANT-MIDDLEWARE] Defaulting subdomain to demo (no header/query/referrer)`);
+    } else {
+      console.log(`[TENANT-MIDDLEWARE] Detected subdomain: ${subdomain} from header/query/referrer`);
+    }
     
     let organization = await storage.getOrganizationBySubdomain(subdomain);
     

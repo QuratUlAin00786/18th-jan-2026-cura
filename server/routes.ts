@@ -15340,7 +15340,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
-  const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+  const STRIPE_WEBHOOK_SECRET = 'whsec_WFdxWYvzMVRtKtBqLT7RO09PAtZBGHdr';
 
   async function ensureStripeCustomer(
     stripeClient: Stripe,
