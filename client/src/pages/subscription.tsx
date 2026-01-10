@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Crown, Users, Calendar, Zap, Check, X, Package, Heart, Brain, Shield, Stethoscope, Phone, FileText, Activity, Pill, UserCheck, TrendingUp, Download, CreditCard, Printer, XCircle } from "lucide-react";
 import { PaymentMethodDialog } from "@/components/payment-method-dialog";
-import { getTenantSubdomain } from "@/lib/queryClient";
+import { getTenantSubdomain, queryClient } from "@/lib/queryClient";
 import InvoiceTemplate from "@/pages/saas/components/InvoiceTemplate";
 import type { Subscription } from "@/types";
 import type { SaaSPackage } from "@shared/schema";
@@ -129,6 +129,9 @@ export default function Subscription() {
   const [stripeAlertOpen, setStripeAlertOpen] = useState(false);
   const [stripeAlertMessage, setStripeAlertMessage] = useState("");
   const invoiceRef = useRef<HTMLDivElement>(null);
+  const [postCheckoutSession, setPostCheckoutSession] = useState<any>(null);
+  const [postCheckoutLoading, setPostCheckoutLoading] = useState(false);
+  const [postCheckoutError, setPostCheckoutError] = useState("");
 
   const handleStripeCheckout = async (plan: any) => {
     if (!plan.stripePriceId) {
@@ -306,6 +309,57 @@ export default function Subscription() {
     return () => clearInterval(timer);
   }, [subscription?.nextBillingAt]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    const isSuccess = params.get("success") === "true";
+
+    if (!isSuccess || !sessionId) {
+      return;
+    }
+
+    const fetchSession = async () => {
+      setPostCheckoutLoading(true);
+      setPostCheckoutError("");
+      try {
+        const token = localStorage.getItem("auth_token");
+        const subdomain = localStorage.getItem("user_subdomain") || "demo";
+        const headers: Record<string, string> = {
+          "X-Tenant-Subdomain": subdomain,
+        };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`/api/stripe/checkout-session/${sessionId}`, {
+          credentials: "include",
+          headers,
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || "Failed to retrieve checkout session");
+        }
+
+        const sessionData = await response.json();
+        setPostCheckoutSession(sessionData);
+        queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/billing-history"] });
+      } catch (error: any) {
+        setPostCheckoutError(error?.message || "Failed to fetch checkout session");
+      } finally {
+        setPostCheckoutLoading(false);
+      }
+    };
+
+    fetchSession();
+
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("success");
+    cleanUrl.searchParams.delete("session_id");
+    window.history.replaceState({}, document.title, cleanUrl.toString());
+  }, []);
+
   if (isLoading || packagesLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 page-full-width">
@@ -328,6 +382,31 @@ export default function Subscription() {
       />
       <div className="w-full flex-1 overflow-auto bg-white dark:bg-gray-900 px-4 lg:px-6 py-6">
         <div className="space-y-6">
+          {postCheckoutLoading && (
+            <Alert>
+              <AlertTitle className="text-sm">Confirming your subscription</AlertTitle>
+              <AlertDescription className="text-sm">
+                We are retrieving your checkout session to finalize billing. This should only take a moment.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {postCheckoutError && (
+            <Alert variant="destructive">
+              <AlertTitle className="text-sm">Could not verify checkout session</AlertTitle>
+              <AlertDescription className="text-sm">{postCheckoutError}</AlertDescription>
+            </Alert>
+          )}
+
+          {postCheckoutSession && (
+            <Alert variant="success">
+              <AlertTitle className="text-sm">Stripe session verified</AlertTitle>
+              <AlertDescription className="text-sm">
+                Subscription {postCheckoutSession.subscription || "in progress"} · Invoice{" "}
+                {postCheckoutSession.invoice || "pending"} · Checkout ID {postCheckoutSession.id}.
+              </AlertDescription>
+            </Alert>
+          )}
           {subscription?.status === "active" && (
             <Alert variant="destructive" className="flex items-start gap-3 pb-2">
               <XCircle className="h-5 w-5 text-destructive" />

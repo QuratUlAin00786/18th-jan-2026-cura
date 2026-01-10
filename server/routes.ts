@@ -15342,6 +15342,37 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
+  app.get("/api/stripe/checkout-session/:sessionId", authMiddleware, async (req: TenantRequest, res) => {
+    try {
+      if (!stripe) {
+        return res.status(500).json({ error: "Stripe is not configured" });
+      }
+
+      const sessionId = req.params.sessionId;
+      if (!sessionId) {
+        return res.status(400).json({ error: "Session ID is required" });
+      }
+
+      const session = await stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ["subscription", "invoice"],
+      });
+
+      if (!session) {
+        return res.status(404).json({ error: "Checkout session not found" });
+      }
+
+      const sessionOrgId = session.metadata?.organizationId ? Number(session.metadata.organizationId) : null;
+      if (req.organizationId && sessionOrgId && sessionOrgId !== req.organizationId) {
+        return res.status(403).json({ error: "Session does not belong to your organization" });
+      }
+
+      res.json(session);
+    } catch (error: any) {
+      console.error("Error retrieving Stripe checkout session:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch checkout session" });
+    }
+  });
+
   const STRIPE_WEBHOOK_SECRET = 'whsec_WFdxWYvzMVRtKtBqLT7RO09PAtZBGHdr';
 
   async function ensureStripeCustomer(
