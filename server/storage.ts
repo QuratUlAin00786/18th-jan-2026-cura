@@ -2099,11 +2099,8 @@ export class DatabaseStorage implements IStorage {
       })
       .where(and(
         eq(notifications.id, id),
-        eq(notifications.organizationId, organizationId),
-        or(
-          isNull(notifications.userId),
-          eq(notifications.userId, userId),
-        )
+        eq(notifications.userId, userId),
+        eq(notifications.organizationId, organizationId)
       ))
       .returning();
     return updated;

@@ -15379,7 +15379,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         },
       });
 
-      console.log("[STRIPE CHECKOUT] Session creation response:", session);
+      console.log("[STRIPE CHECKOUT] Session created", { sessionId: session.id });
 
       res.json({ url: session.url, sessionId: session.id });
     } catch (error: any) {
@@ -15557,10 +15557,8 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         const organizationId = Number(session.metadata?.organizationId);
         console.log("[STRIPE WEBHOOK] checkout.session.completed", {
           sessionId: session.id,
-          subscription: session.subscription,
-          invoice: session.invoice,
           organizationId,
-          packageId
+          packageId,
         });
         if (!packageId || !organizationId || !session.subscription) {
           break;
@@ -15597,9 +15595,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         const invoice = event.data.object as Stripe.Invoice;
         console.log("[STRIPE WEBHOOK] invoice.payment_succeeded", {
           invoiceId: invoice.id,
-          subscription: invoice.subscription,
-          amountPaid: invoice.amount_paid,
-          currency: invoice.currency
+          subscriptionId: invoice.subscription,
         });
         await handleInvoiceSuccess(invoice);
         break;

@@ -80,7 +80,7 @@ export default function Patients() {
   const [genderFilter, setGenderFilter] = useState<"all" | "Male" | "Female">("all");
   
   // State for view mode (true = List view, false = Grid view)
-  const [isListView, setIsListView] = useState(false);
+  const [isListView, setIsListView] = useState(true);
   
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
