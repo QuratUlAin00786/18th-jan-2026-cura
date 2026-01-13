@@ -15408,7 +15408,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       }
 
       const sessionOrgId = session.metadata?.organizationId ? Number(session.metadata.organizationId) : null;
-      if (req.organizationId && sessionOrgId && sessionOrgId !== req.organizationId) {
+      if (!req.organizationId || !sessionOrgId || sessionOrgId !== req.organizationId) {
         return res.status(403).json({ error: "Session does not belong to your organization" });
       }
 
