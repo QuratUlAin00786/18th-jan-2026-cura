@@ -67,6 +67,23 @@ import { useLocation } from "wouter";
 import { isDoctorLike, formatRoleLabel } from "@/lib/role-utils";
 import { cn } from "@/lib/utils";
 
+const formatTimestampFromSystem = (timestamp?: string | null) => {
+  if (!timestamp) return "N/A";
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "N/A";
+
+  return date.toLocaleString("en-US", {
+    hour12: true,
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 interface Prescription {
   id: string;
   patientId: string;
@@ -1090,7 +1107,8 @@ export default function PrescriptionsPage() {
       const patient = patients.find((p) => p.id === data.patientId);
       const enhancedData = {
         ...data,
-        patientName: patient ? `${patient.firstName} ${patient.lastName}` : null
+        patientName: patient ? `${patient.firstName} ${patient.lastName}` : null,
+        clientCreatedAt: new Date().toISOString(),
       };
       
       setCreatedPrescriptionDetails(enhancedData);
@@ -3014,60 +3032,6 @@ export default function PrescriptionsPage() {
           </TabsList>
 
           <TabsContent value="prescriptions" className="space-y-4 sm:space-y-6">
-            {isPrescriptionSearchActive && prescriptionSearchResult && (
-              <Card className="border border-gray-200 bg-slate-50 dark:bg-slate-900">
-                <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">
-                        Search Result
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {prescriptionSearchResult.prescriptionNumber ||
-                          "Prescription"}
-                      </p>
-                    </div>
-                    <Badge className={getStatusColor(prescriptionSearchResult.status)}>
-                      {prescriptionSearchResult.status}
-                    </Badge>
-                  </div>
-                  <div className="grid gap-2 text-sm text-gray-600 dark:text-gray-300 lg:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500">
-                        Patient
-                      </p>
-                      <p className="text-sm font-medium">
-                        {prescriptionSearchResult.patientName || "Unknown Patient"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500">
-                        Provider
-                      </p>
-                      <p className="text-sm">
-                        {prescriptionSearchResult.providerName || "Provider unknown"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
-                    <p>
-                      {prescriptionSearchResult.prescribedAt
-                        ? format(
-                            new Date(prescriptionSearchResult.prescribedAt),
-                            "dd LLL yyyy HH:mm",
-                          )
-                        : "Date unavailable"}
-                    </p>
-                    <p>•</p>
-                    <p>
-                      {prescriptionSearchResult.medications?.length
-                        ? `${prescriptionSearchResult.medications.length} medications`
-                        : "No medications listed"}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
             {isFilterActive && filteredPrescriptions.length === 0 && (
               <Card className="border border-dashed border-gray-300 bg-yellow-50 text-left">
                 <CardContent className="p-4">
@@ -5047,8 +5011,62 @@ export default function PrescriptionsPage() {
               </select>
             </div>
           </div>
+          {isPrescriptionSearchActive && prescriptionSearchResult && (
+            <Card className="border border-gray-200 bg-slate-50 dark:bg-slate-900">
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">
+                      Search Result
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {prescriptionSearchResult.prescriptionNumber ||
+                        "Prescription"}
+                    </p>
+                  </div>
+                  <Badge className={getStatusColor(prescriptionSearchResult.status)}>
+                    {prescriptionSearchResult.status}
+                  </Badge>
+                </div>
+                <div className="grid gap-2 text-sm text-gray-600 dark:text-gray-300 lg:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500">
+                      Patient
+                    </p>
+                    <p className="text-sm font-medium">
+                      {prescriptionSearchResult.patientName || "Unknown Patient"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500">
+                      Provider
+                    </p>
+                    <p className="text-sm">
+                      {prescriptionSearchResult.providerName || "Provider unknown"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
+                  <p>
+                    {prescriptionSearchResult.prescribedAt
+                      ? format(
+                          new Date(prescriptionSearchResult.prescribedAt),
+                          "dd LLL yyyy HH:mm",
+                        )
+                      : "Date unavailable"}
+                  </p>
+                  <p>•</p>
+                  <p>
+                    {prescriptionSearchResult.medications?.length
+                      ? `${prescriptionSearchResult.medications.length} medications`
+                      : "No medications listed"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+          <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2">
             {isFilterActive &&
               filteredPrescriptions.length > 0 &&
               !isPrescriptionSearchActive && (
@@ -5954,7 +5972,11 @@ export default function PrescriptionsPage() {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 font-medium">Created At:</span>
                   <span className="text-gray-900">
-                    {createdPrescriptionDetails.createdAt ? new Date(createdPrescriptionDetails.createdAt).toLocaleString() : 'N/A'}
+                    {createdPrescriptionDetails.clientCreatedAt
+                      ? formatTimestampFromSystem(createdPrescriptionDetails.clientCreatedAt)
+                      : createdPrescriptionDetails.createdAt
+                        ? formatTimestampFromSystem(createdPrescriptionDetails.createdAt)
+                        : "N/A"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">

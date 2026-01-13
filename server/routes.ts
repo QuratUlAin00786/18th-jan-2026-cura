@@ -15115,19 +15115,21 @@ This treatment plan should be reviewed and adjusted based on individual patient 
 
       const organizationId = req.tenant!.id;
       const patientId = payload.patientId;
-      const baseDir = path.join("./uploads", "anatomical_analysis_img", organizationId.toString(), patientId.toString());
+      const baseDir = path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString());
 
       if (!await fs.promises.access(baseDir).then(() => true).catch(() => false)) {
         await fs.promises.mkdir(baseDir, { recursive: true });
       }
 
       const timestamp = Date.now();
-      const finalFilename = payload.filename || `${patientId}_${timestamp}.pdf`;
+      const defaultFilename = `${patientId}_anatomical_analysis_${timestamp}.pdf`;
+      const finalFilename = payload.filename || defaultFilename;
       const pdfPath = path.join(baseDir, finalFilename);
-      const normalizedData = payload.pdfData.replace(/^data:application\/pdf;base64,/, "");
+      const normalizedData = payload.pdfData.replace(/^data:.*;base64,/, "");
       const pdfBuffer = Buffer.from(normalizedData, "base64");
 
       await fs.promises.writeFile(pdfPath, pdfBuffer);
+      const stat = await fs.promises.stat(pdfPath);
 
       console.log(`💾 Saved anatomical analysis PDF for patient ${patientId}: ${pdfPath}`);
 
@@ -15135,7 +15137,9 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         message: "Anatomical analysis PDF saved successfully",
         filename: finalFilename,
         path: pdfPath,
-        url: `/uploads/anatomical_analysis_img/${organizationId}/${patientId}/${encodeURIComponent(finalFilename)}`,
+        url: `/uploads/anatomical_analysis_files/${organizationId}/${patientId}/${encodeURIComponent(finalFilename)}`,
+        size: stat.size,
+        uploadedAt: stat.mtime.toISOString(),
         action: "created",
       });
     } catch (error) {
@@ -15156,7 +15160,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       }
 
       const organizationId = req.tenant!.id;
-      const baseDir = path.join("./uploads", "anatomical_analysis_img", organizationId.toString(), patientId.toString());
+      const baseDir = path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString());
       const dirExists = await fs.promises.access(baseDir).then(() => true).catch(() => false);
 
       if (!dirExists) {
@@ -15172,7 +15176,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
             filename,
             uploadedAt: stat.mtime.toISOString(),
             size: stat.size,
-            url: `/uploads/anatomical_analysis_img/${organizationId}/${patientId}/${encodeURIComponent(filename)}`,
+            url: `/uploads/anatomical_analysis_files/${organizationId}/${patientId}/${encodeURIComponent(filename)}`,
           };
         }),
       );
@@ -15204,7 +15208,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         .parse(req.body);
 
       const organizationId = req.tenant!.id;
-      const baseDir = path.join("./uploads", "anatomical_analysis_img", organizationId.toString(), patientId.toString());
+      const baseDir = path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString());
       const targetPath = path.join(baseDir, payload.filename);
 
       if (!targetPath.startsWith(baseDir)) {
@@ -15509,6 +15513,13 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         const session = event.data.object as Stripe.Checkout.Session;
         const packageId = Number(session.metadata?.packageId || session.metadata?.planId);
         const organizationId = Number(session.metadata?.organizationId);
+        console.log("[STRIPE WEBHOOK] checkout.session.completed", {
+          sessionId: session.id,
+          subscription: session.subscription,
+          invoice: session.invoice,
+          organizationId,
+          packageId
+        });
         if (!packageId || !organizationId || !session.subscription) {
           break;
         }
@@ -15542,6 +15553,12 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       }
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
+        console.log("[STRIPE WEBHOOK] invoice.payment_succeeded", {
+          invoiceId: invoice.id,
+          subscription: invoice.subscription,
+          amountPaid: invoice.amount_paid,
+          currency: invoice.currency
+        });
         await handleInvoiceSuccess(invoice);
         break;
       }

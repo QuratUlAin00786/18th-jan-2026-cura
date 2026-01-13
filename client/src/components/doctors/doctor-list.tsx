@@ -40,7 +40,7 @@ import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { useState, useMemo, useEffect, FormEvent } from "react";
+import { useState, useMemo, useEffect, useCallback, FormEvent } from "react";
 import { isDoctorLike } from "@/lib/role-utils";
 import type { User as Doctor, Appointment } from "@shared/schema";
 import {
@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Popover,
   PopoverContent,
@@ -242,6 +243,7 @@ export function DoctorList({
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isPatientBookingFlow = user?.role === "patient";
+  const [shiftWarning, setShiftWarning] = useState("");
 
   const resetBookingForm = () => {
     setSelectedDate(undefined);
@@ -351,6 +353,54 @@ export function DoctorList({
     },
   });
 
+  const hasFutureShiftsForDoctor = useCallback(() => {
+    const doctorId = selectedBookingDoctor?.id?.toString();
+    if (!doctorId) return false;
+
+    const now = new Date();
+    const todayStr = format(now, "yyyy-MM-dd");
+    const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now
+      .getMinutes()
+      .toString()
+      .padStart(2, "0")}`;
+
+    const customShiftAvailable = allDoctorShifts?.some((shift: any) => {
+      if (shift.staffId?.toString() !== doctorId) return false;
+      const shiftDateStr = shift.date?.substring(0, 10);
+      if (!shiftDateStr) return false;
+      if (shiftDateStr > todayStr) return true;
+      if (shiftDateStr < todayStr) return false;
+      return shift.endTime >= currentTime;
+    });
+
+    const dayNameToIndex: Record<string, number> = {
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+    };
+    const todayIndex = dayNameToIndex[format(now, "EEEE").toLowerCase()];
+
+    const defaultShiftAvailable = defaultShiftsData?.some((shift: any) => {
+      if (shift.userId?.toString() !== doctorId) return false;
+      const workingDays = (shift.workingDays || []).map((day: string) => {
+        return dayNameToIndex[day.toLowerCase()] ?? -1;
+      });
+      return workingDays.some((dayIndex: number) => {
+        if (dayIndex === -1) return false;
+        return (
+          dayIndex > todayIndex ||
+          (dayIndex === todayIndex && shift.endTime >= currentTime)
+        );
+      });
+    });
+
+    return Boolean(customShiftAvailable || defaultShiftAvailable);
+  }, [allDoctorShifts, defaultShiftsData, selectedBookingDoctor]);
+
   // Fetch shifts for the selected date and doctor
   const { data: shiftsData } = useQuery({
     queryKey: ["/api/shifts", selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null],
@@ -363,6 +413,25 @@ export function DoctorList({
       return data;
     },
   });
+
+  useEffect(() => {
+    if (!isBookingOpen || !selectedBookingDoctor?.id) {
+      setShiftWarning("");
+      return;
+    }
+
+    const normalizedRole = (user?.role || "").toLowerCase();
+    if (!["admin", "doctor", "nurse"].includes(normalizedRole)) {
+      setShiftWarning("");
+      return;
+    }
+
+    if (hasFutureShiftsForDoctor()) {
+      setShiftWarning("");
+    } else {
+      setShiftWarning("please create shifts from Shift Management");
+    }
+  }, [isBookingOpen, selectedBookingDoctor?.id, user?.role, hasFutureShiftsForDoctor]);
 
   // Fetch all appointments for availability checking
   const { data: appointments } = useQuery({
@@ -1877,6 +1946,23 @@ const bookingSummaryServiceInfo = useMemo(
               Book Appointment with Dr. {selectedBookingDoctor ? `${selectedBookingDoctor.firstName} ${selectedBookingDoctor.lastName}` : 'John Smith'}
             </DialogTitle>
           </DialogHeader>
+            {shiftWarning && (
+              <Alert className="mb-4 bg-yellow-50 text-yellow-900 border-yellow-200 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <AlertDescription className="flex-1">{shiftWarning}</AlertDescription>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const targetSubdomain = getTenantSubdomain();
+                      setLocation(`/${targetSubdomain}/shifts?tab=default-shifts`);
+                    }}
+                  >
+                    Create Shifts
+                  </Button>
+                </div>
+              </Alert>
+            )}
           <div id="booking-dialog-description" className="sr-only">
             Schedule a new appointment by selecting specialty, doctor, date, and time slot.
           </div>

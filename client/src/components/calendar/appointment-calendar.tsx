@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Calendar, Clock, MapPin, User, Users, Video, Stethoscope, FileText, Plus, Save, X, Mic, Square, Edit, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, startOfWeek, endOfWeek } from "date-fns";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const anatomicalDiagramImage = "/anatomical-diagram-clean.svg";
 const facialDiagramImage = "/clean-facial-diagram.png";
@@ -31,7 +32,7 @@ const formatAppointmentTimeUTC = (iso?: string) => {
 };
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getTenantSubdomain } from "@/lib/queryClient";
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -224,6 +225,8 @@ export default function AppointmentCalendar({ onNewAppointment }: { onNewAppoint
     patientId: "",
     description: "",
   });
+  const [shiftWarning, setShiftWarning] = useState("");
+  const [missingDateTimeWarning, setMissingDateTimeWarning] = useState("");
   const [appointmentType, setAppointmentType] = useState<"consultation" | "treatment" | "">("");
   const [appointmentSelectedTreatment, setAppointmentSelectedTreatment] = useState<any>(null);
   const [appointmentSelectedConsultation, setAppointmentSelectedConsultation] = useState<any>(null);
@@ -1111,6 +1114,65 @@ Medical License: [License Number]
     },
   });
 
+  const hasAnyShiftForProvider = useCallback(
+    (providerId: string) => {
+      if (!providerId) return false;
+
+      const now = new Date();
+      const todayStr = format(now, "yyyy-MM-dd");
+      const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now
+        .getMinutes()
+        .toString()
+        .padStart(2, "0")}`;
+
+      const isCustomShiftRelevant = (shift: any) => {
+        if (!shift || shift.staffId?.toString() !== providerId) return false;
+        const shiftDateStr =
+          shift.date instanceof Date
+            ? format(shift.date, "yyyy-MM-dd")
+            : shift.date?.substring(0, 10);
+
+        if (!shiftDateStr) return false;
+
+        if (shiftDateStr > todayStr) return true;
+        if (shiftDateStr < todayStr) return false;
+
+        return shift.endTime >= currentTime;
+      };
+
+      const hasCustom = allProviderShifts?.some(isCustomShiftRelevant);
+
+      const dayNameToIndex: Record<string, number> = {
+        sunday: 0,
+        monday: 1,
+        tuesday: 2,
+        wednesday: 3,
+        thursday: 4,
+        friday: 5,
+        saturday: 6,
+      };
+      const todayIndex = dayNameToIndex[format(now, "EEEE").toLowerCase()];
+
+      const hasDefaultShift = defaultShiftsData?.some((shift: any) => {
+        if (!shift || shift.userId?.toString() !== providerId) return false;
+        const workingDays = (shift.workingDays || []).map((day: string) => {
+          return dayNameToIndex[day.toLowerCase()] ?? -1;
+        });
+        const dayInFuture = workingDays.some((dayIndex: number) => {
+          if (dayIndex === -1) return false;
+          return (
+            dayIndex > todayIndex ||
+            (dayIndex === todayIndex && shift.endTime >= currentTime)
+          );
+        });
+        return dayInFuture;
+      });
+
+      return Boolean(hasCustom || hasDefaultShift);
+    },
+    [allProviderShifts, defaultShiftsData],
+  );
+
   // Generate time slots with two-tier system: custom shifts OR default shifts
   const timeSlots = useMemo(() => {
     // If no provider or date selected, return empty array
@@ -1232,6 +1294,28 @@ Medical License: [License Number]
 
     return allSlots;
   }, [selectedProviderId, newAppointmentDate, shiftsData, defaultShiftsData, selectedDuration]);
+
+  useEffect(() => {
+    if (user?.role !== "admin" || !showNewAppointment) {
+      return;
+    }
+
+    if (!selectedProviderId) {
+      setShiftWarning("");
+      return;
+    }
+
+    if (!hasAnyShiftForProvider(selectedProviderId)) {
+      setShiftWarning("please create shifts from Shift Management");
+    } else {
+      setShiftWarning("");
+    }
+  }, [
+    showNewAppointment,
+    user?.role,
+    selectedProviderId,
+    hasAnyShiftForProvider,
+  ]);
 
   // *** CHANGE 4: Fetch shifts for EDIT appointment date ***
   const { data: editShiftsData } = useQuery({
@@ -1949,39 +2033,6 @@ Medical License: [License Number]
                 </div>
 
               <div className="space-y-4 mt-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Patient</Label>
-                    <p className="text-lg">{getPatientName(selectedAppointment.patientId)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Provider</Label>
-                    <p className="text-lg">Dr. {selectedAppointment.providerName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Type</Label>
-                    <Badge
-                      style={{
-                        backgroundColor: typeBgColors[selectedAppointment.type as keyof typeof typeBgColors] || typeBgColors.consultation,
-                        color: typeColors[selectedAppointment.type as keyof typeof typeColors] || typeColors.consultation
-                      }}
-                    >
-                      {selectedAppointment.type.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Status</Label>
-                    <Badge
-                      style={{
-                        backgroundColor: statusBgColors[selectedAppointment.status as keyof typeof statusBgColors] || statusBgColors.scheduled,
-                        color: statusColors[selectedAppointment.status as keyof typeof statusColors] || statusColors.scheduled
-                      }}
-                    >
-                      {selectedAppointment.status.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                  </div>
-                </div>
-                
                 {selectedAppointment.description?.trim() ? (
                   <div>
                     <Label className="text-sm font-medium text-gray-600">Description</Label>
@@ -2269,6 +2320,30 @@ Medical License: [License Number]
                 Fill in the details to create a new appointment
               </DialogDescription>
             </DialogHeader>
+          
+          {user?.role === 'admin' && shiftWarning && (
+            <Alert className="mb-4 bg-yellow-50 text-yellow-900 border-yellow-200 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <AlertDescription className="flex-1">{shiftWarning}</AlertDescription>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const subdomain = localStorage.getItem("user_subdomain") || getTenantSubdomain();
+                    window.location.href = `/${subdomain}/shifts?tab=default-shifts`;
+                  }}
+                >
+                  Create Shifts
+                </Button>
+              </div>
+            </Alert>
+          )}
+
+          {user?.role === 'admin' && !shiftWarning && missingDateTimeWarning && (
+            <Alert className="mb-4 bg-yellow-50 text-yellow-900 border-yellow-200 shadow-sm">
+              <AlertDescription>{missingDateTimeWarning}</AlertDescription>
+            </Alert>
+          )}
             
             {user?.role === 'admin' ? (
               /* Admin Layout - Full Width with Rows */
@@ -3100,6 +3175,15 @@ Medical License: [License Number]
                     if (!selectedProviderId) {
                       setProviderError("Please select a provider.");
                       hasError = true;
+                    } else {
+                      const hasShifts = hasAnyShiftForProvider(selectedProviderId);
+                      if (!hasShifts) {
+                        setShiftWarning("please create shifts from Shift Management");
+                        setMissingDateTimeWarning("");
+                        hasError = true;
+                      } else {
+                        setShiftWarning("");
+                      }
                     }
                     
                     if (!selectedRole) {
@@ -3117,7 +3201,10 @@ Medical License: [License Number]
                         description: "Please select both date and time slot.",
                         variant: "destructive",
                       });
+                      setMissingDateTimeWarning("Missing Information Please select both date and time slot.");
                       hasError = true;
+                    } else {
+                      setMissingDateTimeWarning("");
                     }
                     
                     if (hasError) {

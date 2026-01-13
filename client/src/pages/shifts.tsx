@@ -13,6 +13,7 @@ import { Calendar, Clock, Users, CalendarCheck, ChevronLeft, ChevronRight, UserC
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { isDoctorLike } from "@/lib/role-utils";
+import { useLocation } from "wouter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 export default function ShiftsPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [isInitializingDefaultShifts, setIsInitializingDefaultShifts] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState("");
@@ -57,6 +59,25 @@ export default function ShiftsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [location] = useLocation();
+  const getSearchFromLocation = (loc?: string) => {
+    if (loc && loc.includes("?")) {
+      return loc.substring(loc.indexOf("?") + 1);
+    }
+    if (typeof window !== "undefined") {
+      return window.location.search.replace(/^\?/, "");
+    }
+    return "";
+  };
+  const getTabFromLocation = (loc?: string) => {
+    const search = getSearchFromLocation(loc);
+    const params = new URLSearchParams(search);
+    return params.get("tab") || "custom-shifts";
+  };
+  const [activeTab, setActiveTab] = useState(() => getTabFromLocation(location));
+  useEffect(() => {
+    setActiveTab(getTabFromLocation(location));
+  }, [location]);
   
   // Compute isDoctor before any hooks that reference it
   const isDoctor = isDoctorLike(user?.role);
@@ -948,7 +969,7 @@ export default function ShiftsPage() {
       />
       
       <div className="p-6">
-        <Tabs defaultValue="custom-shifts" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="default-shifts" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -985,6 +1006,7 @@ export default function ShiftsPage() {
                   </Button>
                   <Button
                     onClick={async () => {
+                      setIsInitializingDefaultShifts(true);
                       try {
                         const response = await apiRequest("POST", "/api/default-shifts/initialize");
                         const result = await response.json();
@@ -997,12 +1019,15 @@ export default function ShiftsPage() {
                           description: "Failed to initialize default shifts",
                           variant: "destructive",
                         });
+                      } finally {
+                        setIsInitializingDefaultShifts(false);
                       }
                     }}
+                    disabled={isInitializingDefaultShifts}
                     data-testid="button-initialize-shifts"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Initialize Default Shifts
+                    {isInitializingDefaultShifts ? "Creating Default Shifts" : "Initialize Default Shifts"}
                   </Button>
                 </div>
               )}

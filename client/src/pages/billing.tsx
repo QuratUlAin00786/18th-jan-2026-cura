@@ -424,7 +424,17 @@ function PricingManagementDashboard() {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showServiceSuggestions, showRoleSuggestions, showDoctorSuggestions, showLabTestSuggestions, showLabRoleSuggestions, showLabDoctorSuggestions, showImagingTypeSuggestions]);
+  }, [
+    showServiceSuggestions,
+    showRoleSuggestions,
+    showDoctorSuggestions,
+    showLabTestSuggestions,
+    showLabRoleSuggestions,
+    showLabDoctorSuggestions,
+    showImagingTypeSuggestions,
+    showTreatmentRoleSuggestions,
+    showTreatmentDoctorSuggestions,
+  ]);
 
   const getApiPath = (tab: string) => {
     const pathMap: Record<string, string> = {
@@ -1680,6 +1690,7 @@ function PricingManagementDashboard() {
                         }
                         setShowRoleSuggestions(true);
                       }}
+                      onClick={() => setShowRoleSuggestions(true)}
                       placeholder="Select role"
                       autoComplete="off"
                       required
@@ -1735,10 +1746,16 @@ function PricingManagementDashboard() {
                         setShowDoctorSuggestions(true);
                         setDoctorNameError(""); // Clear error on change
                       }}
-                      onFocus={() => setShowDoctorSuggestions(true)}
-                      placeholder="Select or enter name"
+                      onFocus={() => {
+                        if (!formData.doctorRole) {
+                          return;
+                        }
+                        setShowDoctorSuggestions(true);
+                      }}
+                      placeholder={formData.doctorRole ? "Select or enter name" : "Select role first"}
                       autoComplete="off"
                       required
+                      disabled={!formData.doctorRole}
                       data-testid="input-bulk-name"
                     />
                     {showDoctorSuggestions && (
@@ -2711,7 +2728,8 @@ function PricingManagementDashboard() {
                     setTreatmentForm({ ...treatmentForm, doctorRole: e.target.value, doctorName: "", doctorId: null });
                     setShowTreatmentRoleSuggestions(true);
                   }}
-                  onFocus={() => setShowTreatmentRoleSuggestions(true)}
+                  onClick={() => setShowTreatmentRoleSuggestions(true)}
+                  onMouseDown={() => setShowTreatmentRoleSuggestions(true)}
                   placeholder="Select role"
                   autoComplete="off"
                 />
@@ -2750,9 +2768,15 @@ function PricingManagementDashboard() {
                     setTreatmentForm({ ...treatmentForm, doctorName: e.target.value, doctorId: null });
                     setShowTreatmentDoctorSuggestions(true);
                   }}
-                  onFocus={() => setShowTreatmentDoctorSuggestions(true)}
-                  placeholder="Type to search..."
+                  onFocus={() => {
+                    if (!treatmentForm.doctorRole) {
+                      return;
+                    }
+                    setShowTreatmentDoctorSuggestions(true);
+                  }}
+                  placeholder={treatmentForm.doctorRole ? "Type to search..." : "Select role first"}
                   autoComplete="off"
+                  disabled={!treatmentForm.doctorRole}
                 />
                 {showTreatmentDoctorSuggestions && (
                   <div className="treatment-doctor-suggestions absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto top-full">
