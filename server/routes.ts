@@ -15101,6 +15101,48 @@ This treatment plan should be reviewed and adjusted based on individual patient 
     }
   });
 
+  app.get("/api/anatomical-analysis/images/:patientId", authMiddleware, async (req: TenantRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const patientId = parseInt(req.params.patientId, 10);
+      if (Number.isNaN(patientId)) {
+        return res.status(400).json({ error: "Invalid patient ID" });
+      }
+
+      const organizationId = req.tenant!.id;
+      const baseDir = path.join("./uploads", "anatomical_analysis_img", organizationId.toString(), patientId.toString());
+      const dirExists = await fs.promises.access(baseDir).then(() => true).catch(() => false);
+
+      if (!dirExists) {
+        return res.json({ files: [] });
+      }
+
+      const filenames = await fs.promises.readdir(baseDir);
+      const fileDetails = await Promise.all(
+        filenames.map(async (filename) => {
+          const filePath = path.join(baseDir, filename);
+          const stat = await fs.promises.stat(filePath);
+          return {
+            filename,
+            uploadedAt: stat.mtime.toISOString(),
+            size: stat.size,
+            url: `/uploads/anatomical_analysis_img/${organizationId}/${patientId}/${encodeURIComponent(filename)}`,
+          };
+        }),
+      );
+
+      fileDetails.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+
+      res.json({ files: fileDetails });
+    } catch (error) {
+      console.error("Error listing anatomical analysis images:", error);
+      handleRouteError(error, "list anatomical analysis images", res);
+    }
+  });
+
   app.post("/api/anatomical-analysis/save-pdf", authMiddleware, async (req: TenantRequest, res) => {
     try {
       if (!req.user) {
@@ -15125,7 +15167,7 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       const defaultFilename = `${patientId}_anatomical_analysis_${timestamp}.pdf`;
       const finalFilename = payload.filename || defaultFilename;
       const pdfPath = path.join(baseDir, finalFilename);
-      const normalizedData = payload.pdfData.replace(/^data:.*;base64,/, "");
+      const normalizedData = payload.pdfData.replace(/^data:application\/pdf;base64,/, "");
       const pdfBuffer = Buffer.from(normalizedData, "base64");
 
       await fs.promises.writeFile(pdfPath, pdfBuffer);

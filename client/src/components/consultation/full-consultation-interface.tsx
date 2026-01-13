@@ -94,6 +94,13 @@ interface AnatomicalUploadFile {
   size: number;
 }
 
+interface AnatomicalImageFile {
+  filename: string;
+  url: string;
+  uploadedAt: string;
+  size: number;
+}
+
 const formatFileSize = (bytes: number) => {
   if (!bytes || bytes <= 0) return "0 KB";
   const kb = bytes / 1024;
@@ -1271,6 +1278,9 @@ ${
   const [filesLoading, setFilesLoading] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
+  const [anatomicalImageFiles, setAnatomicalImageFiles] = useState<AnatomicalImageFile[]>([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [imagesError, setImagesError] = useState<string | null>(null);
 
   const fetchAnatomicalFiles = useCallback(async () => {
     const currentPatientId = patientId || patient?.id;
@@ -1361,11 +1371,77 @@ ${
     }
   }, [patientId, patient?.id, toast]);
 
+  const fetchAnatomicalImages = useCallback(async () => {
+    const currentPatientId = patientId || patient?.id;
+    if (!currentPatientId) {
+      setAnatomicalImageFiles([]);
+      setSavedAnatomicalImage(null);
+      return;
+    }
+
+    setImagesLoading(true);
+    setImagesError(null);
+
+    try {
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {
+        "X-Tenant-Subdomain": getTenantSubdomain(),
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`/api/anatomical-analysis/images/${currentPatientId}`, {
+        method: "GET",
+        headers,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to load anatomical image (${response.status})`);
+      }
+
+      const data = await response.json();
+      const files: AnatomicalImageFile[] = data.files || [];
+      setAnatomicalImageFiles(files);
+      setSavedAnatomicalImage(files[0]?.url || null);
+    } catch (error: any) {
+      console.error("[ANATOMICAL IMAGES] Failed to load image:", error);
+      setImagesError(error?.message || "Unable to load anatomical analysis image.");
+      toast({
+        title: "Unable to load anatomical image",
+        description: error?.message || "Failed to fetch anatomical analysis image.",
+        variant: "destructive",
+      });
+    } finally {
+      setImagesLoading(false);
+    }
+  }, [patientId, patient?.id, toast]);
+
   useEffect(() => {
     if (showViewAnatomicalDialog) {
       fetchAnatomicalFiles();
+      fetchAnatomicalImages();
     }
-  }, [fetchAnatomicalFiles, showViewAnatomicalDialog]);
+  }, [fetchAnatomicalFiles, fetchAnatomicalImages, showViewAnatomicalDialog]);
+
+  useEffect(() => {
+    const handleAnatomicalFilesUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ patientId: number }>)?.detail;
+      const currentPatientId = patientId || patient?.id;
+      if (detail?.patientId && currentPatientId && detail.patientId !== currentPatientId) {
+        return;
+      }
+
+      fetchAnatomicalFiles();
+      fetchAnatomicalImages();
+    };
+
+    window.addEventListener("anatomicalFilesUpdated", handleAnatomicalFilesUpdated);
+    return () => {
+      window.removeEventListener("anatomicalFilesUpdated", handleAnatomicalFilesUpdated);
+    };
+  }, [fetchAnatomicalFiles, fetchAnatomicalImages, patientId, patient?.id]);
 
   // Anatomical analysis state
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
@@ -1787,12 +1863,14 @@ ${
       }
 
       const result = await response.json();
+      const fallbackImageFilename = `${currentPatientId}_${Date.now()}.png`;
 
       // Set the saved anatomical image path for viewing in the dialog (with timestamp)
       const organizationId = tenant?.id || 0;
-      const imageFilename = result.filename || `${currentPatientId}.png`;
+      const imageFilename = result.filename || fallbackImageFilename;
       const imagePath = `/uploads/anatomical_analysis_img/${organizationId}/${currentPatientId}/${imageFilename}`;
       setSavedAnatomicalImage(imagePath);
+      await fetchAnatomicalImages();
 
       toast({
         title: "Image Saved to Server",
@@ -1941,18 +2019,6 @@ ${
       queryMusclePositionsFromDB();
     }
   }, [selectedMuscleGroup, toast]);
-
-  // Load saved anatomical image when view dialog opens
-  useEffect(() => {
-    if (showViewAnatomicalDialog) {
-      const currentPatientId = patientId || patient?.id;
-      if (currentPatientId && tenant?.id) {
-        const organizationId = tenant.id;
-        const imagePath = `/uploads/anatomical_analysis_img/${organizationId}/${currentPatientId}/${currentPatientId}.png`;
-        setSavedAnatomicalImage(imagePath);
-      }
-    }
-  }, [showViewAnatomicalDialog, patientId, patient?.id, tenant?.id]);
 
   // Static muscle positions data - replaces database queries
   const getStaticMusclePositions = () => {
@@ -2140,8 +2206,9 @@ ${
         }
 
         const result = await saveResponse.json();
+        const fallbackImageFilename = `${currentPatientId}_${Date.now()}.png`;
         const organizationId = tenant?.id || 0;
-        const imageFilename = result.filename || `${currentPatientId}.png`;
+        const imageFilename = result.filename || fallbackImageFilename;
         imagePathToUse = `/uploads/anatomical_analysis_img/${organizationId}/${currentPatientId}/${imageFilename}`;
         setSavedAnatomicalImage(imagePathToUse);
         window.dispatchEvent(
@@ -2420,6 +2487,7 @@ ${
           setSavedPdfFilename(finalFilename);
           setShowPdfSavedModal(true);
           await fetchAnatomicalFiles();
+                          await fetchAnatomicalImages();
           setAnatomicalUploadsTab("uploads");
           window.dispatchEvent(
             new CustomEvent("anatomicalFilesUpdated", {
@@ -4930,8 +4998,9 @@ ${
                             }
 
                             const result = await saveResponse.json();
+                            const fallbackImageFilename = `${currentPatientId}_${Date.now()}.png`;
                             const organizationId = tenant?.id || 0;
-                            const imageFilename = result.filename || `${currentPatientId}.png`;
+                            const imageFilename = result.filename || fallbackImageFilename;
                             imagePathToUse = `/uploads/anatomical_analysis_img/${organizationId}/${currentPatientId}/${imageFilename}`;
                             setSavedAnatomicalImage(imagePathToUse);
                             window.dispatchEvent(
@@ -5826,7 +5895,7 @@ ${
                     disabled={isViewAnalysisDownloading}
                     className="bg-purple-600 hover:bg-purple-700 px-6"
                   >
-                    {isViewAnalysisDownloading ? "ldownloading" : "View Anatomical Analysis"}
+                    {isViewAnalysisDownloading ? "Downloading..." : "View Anatomical Analysis"}
                   </Button>
                   <Button
                     onClick={() => setShowAnatomicalModal(false)}
@@ -5886,6 +5955,12 @@ ${
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
             {/* Saved Image */}
+            {imagesLoading && (
+              <p className="text-sm text-gray-500">Loading saved anatomical image...</p>
+            )}
+            {imagesError && (
+              <p className="text-sm text-red-500">{imagesError}</p>
+            )}
             {savedAnatomicalImage && (
               <div className="border rounded-lg p-4 bg-gray-50">
                 <h3 className="font-semibold text-lg mb-3">Saved Analysis Image</h3>
