@@ -563,6 +563,8 @@ export default function PatientFamilyHistory({
     date: "",
     provider: "",
   });
+  const [selectedImmunization, setSelectedImmunization] = useState<Immunization | null>(null);
+  const [isImmunizationDetailsOpen, setIsImmunizationDetailsOpen] = useState(false);
   const [allergyError, setAllergyError] = useState("");
   const [chronicConditionError, setChronicConditionError] = useState("");
   const [socialHistoryErrors, setSocialHistoryErrors] = useState({
@@ -816,6 +818,16 @@ export default function PatientFamilyHistory({
   };
 
   const immunizations = patient.medicalHistory?.immunizations || [];
+
+  const showImmunizationDetails = (immunization: Immunization) => {
+    setSelectedImmunization(immunization);
+    setIsImmunizationDetailsOpen(true);
+  };
+
+  const closeImmunizationDetails = () => {
+    setIsImmunizationDetailsOpen(false);
+    setSelectedImmunization(null);
+  };
 
   const handleSaveAllChanges = () => {
     // Save the complete medical history including all sections
@@ -2208,9 +2220,87 @@ export default function PatientFamilyHistory({
                     </div>
                   </div>
                 </TabsContent>
-              </Tabs>
+          </Tabs>
 
-              <div className="flex justify-end gap-2 mt-6">
+          <Dialog
+            open={isImmunizationDetailsOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeImmunizationDetails();
+              }
+            }}
+          >
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedImmunization?.vaccine || "Immunization Details"}
+                </DialogTitle>
+              </DialogHeader>
+
+              {selectedImmunization ? (
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-gray-500">
+                      Date
+                    </p>
+                    <p className="font-semibold">
+                      {selectedImmunization.date}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-gray-500">
+                      Provider
+                    </p>
+                    <p className="font-semibold">
+                      {selectedImmunization.provider}
+                    </p>
+                  </div>
+                  {selectedImmunization.lot && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-gray-500">
+                        Lot
+                      </p>
+                      <p className="font-semibold">
+                        {selectedImmunization.lot}
+                      </p>
+                    </div>
+                  )}
+                  {selectedImmunization.site && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-gray-500">
+                        Site
+                      </p>
+                      <p className="font-semibold">
+                        {selectedImmunization.site}
+                      </p>
+                    </div>
+                  )}
+                  {selectedImmunization.notes && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-gray-500">
+                        Notes
+                      </p>
+                      <p className="whitespace-pre-wrap text-sm text-gray-600">
+                        {selectedImmunization.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Select an immunization to view its details.
+                </p>
+              )}
+
+              <div className="flex justify-end mt-6">
+                <Button variant="outline" onClick={closeImmunizationDetails}>
+                  Close
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <div className="flex justify-end gap-2 mt-6">
                 <Button variant="outline" onClick={() => setIsEditing(false)}>
                   Cancel
                 </Button>
@@ -2314,7 +2404,19 @@ export default function PatientFamilyHistory({
             ) : (
               <div className="space-y-2">
                 {immunizations.map((immunization, index) => (
-                  <div key={index} className="border rounded-lg p-3">
+                  <div
+                    key={index}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => showImmunizationDetails(immunization)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        showImmunizationDetails(immunization);
+                      }
+                    }}
+                    className="border rounded-lg p-3 cursor-pointer transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--cura-bluewave))]"
+                  >
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium">

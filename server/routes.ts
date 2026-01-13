@@ -12822,6 +12822,10 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         req.user!.role === "admin"
           ? await storage.getUnreadNotificationCountByOrganization(organizationId)
           : await storage.getUnreadNotificationCount(userId, organizationId);
+      console.log(
+        `[notifications] unread count (org ${organizationId}, user ${userId}, role ${req.user!.role}):`,
+        count,
+      );
       res.json({ count });
     } catch (error) {
       console.error("Error fetching unread count:", error);
@@ -12877,7 +12881,13 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       const userId = req.user!.id;
       const organizationId = req.tenant!.id;
 
-      const notification = await storage.markNotificationAsRead(notificationId, userId, organizationId);
+    const isAdmin = req.user?.role?.toString().toLowerCase() === "admin";
+    console.log(
+      `[notifications] mark read request id=${notificationId} org=${organizationId} user=${userId} role=${req.user?.role}`,
+    );
+    const notification = isAdmin
+      ? await storage.markNotificationAsReadByOrganization(notificationId, organizationId)
+      : await storage.markNotificationAsRead(notificationId, userId, organizationId);
       if (!notification) {
         return res.status(404).json({ error: "Notification not found" });
       }
@@ -12895,7 +12905,13 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       const userId = req.user!.id;
       const organizationId = req.tenant!.id;
 
-      const notification = await storage.markNotificationAsDismissed(notificationId, userId, organizationId);
+    const isAdmin = req.user?.role?.toString().toLowerCase() === "admin";
+    console.log(
+      `[notifications] dismiss request id=${notificationId} org=${organizationId} user=${userId} role=${req.user?.role}`,
+    );
+    const notification = isAdmin
+      ? await storage.markNotificationAsDismissedByOrganization(notificationId, organizationId)
+      : await storage.markNotificationAsDismissed(notificationId, userId, organizationId);
 
       if (!notification) {
         return res.status(404).json({ error: "Notification not found" });
@@ -12913,7 +12929,12 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       const userId = req.user!.id;
       const organizationId = req.tenant!.id;
 
+    const isAdmin = req.user?.role?.toString().toLowerCase() === "admin";
+    if (isAdmin) {
+      await storage.markAllNotificationsAsReadByOrganization(organizationId);
+    } else {
       await storage.markAllNotificationsAsRead(userId, organizationId);
+    }
       res.json({ success: true });
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
@@ -12927,7 +12948,10 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       const userId = req.user!.id;
       const organizationId = req.tenant!.id;
 
-      const success = await storage.deleteNotification(notificationId, userId, organizationId);
+    const isAdmin = req.user?.role?.toString().toLowerCase() === "admin";
+    const success = isAdmin
+      ? await storage.deleteNotificationByOrganization(notificationId, organizationId)
+      : await storage.deleteNotification(notificationId, userId, organizationId);
       if (!success) {
         return res.status(404).json({ error: "Notification not found" });
       }
@@ -15157,7 +15181,14 @@ This treatment plan should be reviewed and adjusted based on individual patient 
 
       const organizationId = req.tenant!.id;
       const patientId = payload.patientId;
-      const baseDir = path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString());
+      const baseDir = path.join(
+        "./uploads",
+        "anatomical_analysis_files",
+        organizationId.toString(),
+        "patients",
+        patientId.toString(),
+        "forms",
+      );
 
       if (!await fs.promises.access(baseDir).then(() => true).catch(() => false)) {
         await fs.promises.mkdir(baseDir, { recursive: true });
@@ -15179,7 +15210,9 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         message: "Anatomical analysis PDF saved successfully",
         filename: finalFilename,
         path: pdfPath,
-        url: `/uploads/anatomical_analysis_files/${organizationId}/${patientId}/${encodeURIComponent(finalFilename)}`,
+        url: `/uploads/anatomical_analysis_files/${organizationId}/patients/${patientId}/forms/${encodeURIComponent(
+          finalFilename,
+        )}`,
         size: stat.size,
         uploadedAt: stat.mtime.toISOString(),
         action: "created",
@@ -15202,7 +15235,14 @@ This treatment plan should be reviewed and adjusted based on individual patient 
       }
 
       const organizationId = req.tenant!.id;
-      const baseDir = path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString());
+      const baseDir = path.join(
+        "./uploads",
+        "anatomical_analysis_files",
+        organizationId.toString(),
+        "patients",
+        patientId.toString(),
+        "forms",
+      );
       const dirExists = await fs.promises.access(baseDir).then(() => true).catch(() => false);
 
       if (!dirExists) {
@@ -15218,7 +15258,9 @@ This treatment plan should be reviewed and adjusted based on individual patient 
             filename,
             uploadedAt: stat.mtime.toISOString(),
             size: stat.size,
-            url: `/uploads/anatomical_analysis_files/${organizationId}/${patientId}/${encodeURIComponent(filename)}`,
+            url: `/uploads/anatomical_analysis_files/${organizationId}/patients/${patientId}/forms/${encodeURIComponent(
+              filename,
+            )}`,
           };
         }),
       );
@@ -15251,7 +15293,14 @@ This treatment plan should be reviewed and adjusted based on individual patient 
 
       const organizationId = req.tenant!.id;
       const candidateDirs = [
-        path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString()),
+        path.join(
+          "./uploads",
+          "anatomical_analysis_files",
+          organizationId.toString(),
+          "patients",
+          patientId.toString(),
+          "forms",
+        ),
         path.join("./uploads", "anatomical_analysis_img", organizationId.toString(), patientId.toString()),
       ];
 
