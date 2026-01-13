@@ -53,6 +53,13 @@ export interface Patient {
       mother?: string[];
       siblings?: string[];
       grandparents?: string[];
+      spouse?: string[];
+      children?: string[];
+      grandchildren?: string[];
+      extended?: string[];
+      step_parents?: string[];
+      step_siblings?: string[];
+      guardian?: string[];
     };
     socialHistory?: {
       smoking?: string;

@@ -47,6 +47,7 @@ import {
   X,
   CheckCircle,
   FileText,
+  Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -115,6 +116,19 @@ interface Immunization {
   notes?: string;
 }
 
+type RelationshipCategory =
+  | "father"
+  | "mother"
+  | "siblings"
+  | "children"
+  | "grandparents"
+  | "grandchildren"
+  | "spouse"
+  | "extended"
+  | "step_parents"
+  | "step_siblings"
+  | "guardian";
+
 const familyMembers = {
   "Immediate Family": [
     "Father",
@@ -144,6 +158,66 @@ const familyMembers = {
     "Partner / Domestic Partner",
     "Guardian"
   ]
+};
+
+const defaultFamilyHistory: Record<RelationshipCategory, string[]> = {
+  father: [],
+  mother: [],
+  siblings: [],
+  children: [],
+  grandparents: [],
+  grandchildren: [],
+  spouse: [],
+  extended: [],
+  step_parents: [],
+  step_siblings: [],
+  guardian: [],
+};
+
+const relationshipLabels: Record<RelationshipCategory, string> = {
+  father: "Father",
+  mother: "Mother",
+  siblings: "Siblings",
+  children: "Children",
+  grandparents: "Grandparents",
+  grandchildren: "Grandchildren",
+  spouse: "Spouse / Partner",
+  extended: "Extended Family",
+  step_parents: "Step Parents",
+  step_siblings: "Step Siblings",
+  guardian: "Guardian",
+};
+
+const relationshipOrder: RelationshipCategory[] = [
+  "father",
+  "mother",
+  "spouse",
+  "children",
+  "grandchildren",
+  "siblings",
+  "step_parents",
+  "step_siblings",
+  "extended",
+  "grandparents",
+  "guardian",
+];
+
+const normalizeFamilyHistory = (
+  history?: Partial<Record<RelationshipCategory, string[]>>,
+): Record<RelationshipCategory, string[]> => {
+  return {
+    father: history?.father ?? [],
+    mother: history?.mother ?? [],
+    siblings: history?.siblings ?? [],
+    children: history?.children ?? [],
+    grandparents: history?.grandparents ?? [],
+    grandchildren: history?.grandchildren ?? [],
+    spouse: history?.spouse ?? [],
+    extended: history?.extended ?? [],
+    step_parents: history?.step_parents ?? [],
+    step_siblings: history?.step_siblings ?? [],
+    guardian: history?.guardian ?? [],
+  };
 };
 
 const medicalConditions = {
@@ -618,11 +692,15 @@ export default function PatientFamilyHistory({
   });
 
   // Make familyHistory reactive to patient data changes
-  const familyHistory = patient.medicalHistory?.familyHistory || {
-    father: [],
-    mother: [],
-    siblings: [],
-    grandparents: [],
+  const familyHistory = normalizeFamilyHistory(patient.medicalHistory?.familyHistory);
+
+  const relationshipLabels: Record<string, string> = {
+    father: "Father",
+    mother: "Mother",
+    siblings: "Siblings",
+    children: "Children",
+    grandparents: "Grandparents",
+    spouse: "Spouse / Partner",
   };
 
   const defaultSocialHistory: SocialHistory = {
@@ -674,7 +752,7 @@ export default function PatientFamilyHistory({
         allergies: patient.medicalHistory?.allergies || [],
         chronicConditions: patient.medicalHistory?.chronicConditions || [],
         medications: patient.medicalHistory?.medications || [],
-        familyHistory: patient.medicalHistory?.familyHistory || {},
+        familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
         socialHistory: editedSocialHistory as any,
         immunizations: patient.medicalHistory?.immunizations || [],
       });
@@ -686,6 +764,71 @@ export default function PatientFamilyHistory({
         variant: "destructive",
       });
     }
+  };
+
+  const saveFamilyHistoryUpdate = (updatedHistory: Record<RelationshipCategory, string[]>) => {
+    const normalized = normalizeFamilyHistory(updatedHistory);
+    const newMedicalHistory = {
+      ...patient.medicalHistory,
+      familyHistory: normalized,
+    };
+    updateMedicalHistoryMutation.mutate({
+      allergies: patient.medicalHistory?.allergies || [],
+      chronicConditions: patient.medicalHistory?.chronicConditions || [],
+      medications: patient.medicalHistory?.medications || [],
+      familyHistory: normalized,
+      socialHistory: patient.medicalHistory?.socialHistory || {},
+      immunizations: patient.medicalHistory?.immunizations || [],
+    });
+    onUpdate({
+      ...patient,
+      medicalHistory: newMedicalHistory,
+    });
+  };
+
+  const [familyConditionDialogOpen, setFamilyConditionDialogOpen] = useState(false);
+  const [familyConditionDialogMode, setFamilyConditionDialogMode] = useState<"view" | "edit">("view");
+  const [familyConditionSelection, setFamilyConditionSelection] = useState<{
+    relationship: RelationshipCategory;
+    condition: string;
+    index: number;
+  } | null>(null);
+  const [familyConditionDraft, setFamilyConditionDraft] = useState("");
+
+  const openFamilyConditionDialog = (
+    mode: "view" | "edit",
+    relationship: RelationshipCategory,
+    condition: string,
+    index: number,
+  ) => {
+    setFamilyConditionDialogMode(mode);
+    setFamilyConditionSelection({ relationship, condition, index });
+    setFamilyConditionDraft(condition);
+    setFamilyConditionDialogOpen(true);
+  };
+
+  const closeFamilyConditionDialog = () => {
+    setFamilyConditionDialogOpen(false);
+    setFamilyConditionSelection(null);
+    setFamilyConditionDraft("");
+  };
+
+  const handleSaveFamilyConditionEdit = () => {
+    if (!familyConditionSelection) return;
+    const updatedHistory = normalizeFamilyHistory(patient.medicalHistory?.familyHistory);
+    updatedHistory[familyConditionSelection.relationship][familyConditionSelection.index] = familyConditionDraft;
+    saveFamilyHistoryUpdate(updatedHistory);
+    closeFamilyConditionDialog();
+  };
+
+  const handleDeleteFamilyCondition = (relationship: RelationshipCategory, index: number) => {
+    const updatedHistory = normalizeFamilyHistory(patient.medicalHistory?.familyHistory);
+    updatedHistory[relationship] = updatedHistory[relationship].filter((_, i) => i !== index);
+    saveFamilyHistoryUpdate(updatedHistory);
+    toast({
+      title: "Condition removed",
+      description: "The family condition entry was deleted.",
+    });
   };
 
   const addAllergy = () => {
@@ -709,7 +852,7 @@ export default function PatientFamilyHistory({
       allergies: updatedAllergies,
       chronicConditions: patient.medicalHistory?.chronicConditions || [],
       medications: patient.medicalHistory?.medications || [],
-      familyHistory: patient.medicalHistory?.familyHistory || {},
+      familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
       socialHistory: patient.medicalHistory?.socialHistory || {},
       immunizations: patient.medicalHistory?.immunizations || [],
     });
@@ -747,7 +890,7 @@ export default function PatientFamilyHistory({
       allergies: updatedAllergies,
       chronicConditions: patient.medicalHistory?.chronicConditions || [],
       medications: patient.medicalHistory?.medications || [],
-      familyHistory: patient.medicalHistory?.familyHistory || {},
+      familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
       socialHistory: patient.medicalHistory?.socialHistory || {},
       immunizations: patient.medicalHistory?.immunizations || [],
     });
@@ -781,7 +924,7 @@ export default function PatientFamilyHistory({
       allergies: patient.medicalHistory?.allergies || [],
       chronicConditions: updatedConditions,
       medications: patient.medicalHistory?.medications || [],
-      familyHistory: patient.medicalHistory?.familyHistory || {},
+      familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
       socialHistory: patient.medicalHistory?.socialHistory || {},
       immunizations: patient.medicalHistory?.immunizations || [],
     });
@@ -804,7 +947,7 @@ export default function PatientFamilyHistory({
       allergies: patient.medicalHistory?.allergies || [],
       chronicConditions: updatedConditions,
       medications: patient.medicalHistory?.medications || [],
-      familyHistory: patient.medicalHistory?.familyHistory || {},
+      familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
       socialHistory: patient.medicalHistory?.socialHistory || {},
       immunizations: patient.medicalHistory?.immunizations || [],
     });
@@ -835,7 +978,7 @@ export default function PatientFamilyHistory({
       allergies: patient.medicalHistory?.allergies || [],
       chronicConditions: patient.medicalHistory?.chronicConditions || [],
       medications: patient.medicalHistory?.medications || [],
-      familyHistory: patient.medicalHistory?.familyHistory || {},
+      familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
       socialHistory: patient.medicalHistory?.socialHistory || {},
       immunizations: patient.medicalHistory?.immunizations || [],
     });
@@ -863,22 +1006,55 @@ export default function PatientFamilyHistory({
     const conditionText = `${newCondition.condition}${newCondition.ageOfOnset ? ` (age ${newCondition.ageOfOnset})` : ""}${newCondition.notes ? ` - ${newCondition.notes}` : ""}`;
 
     // Get current family history and create a copy
-    const currentHistory = patient.medicalHistory?.familyHistory || {
-      father: [],
-      mother: [],
-      siblings: [],
-      grandparents: [],
-    };
+    const currentHistory = normalizeFamilyHistory(patient.medicalHistory?.familyHistory);
 
     // Determine which relative category this belongs to
-    let relativeCategory: "father" | "mother" | "siblings" | "grandparents" =
-      "father";
+    let relativeCategory: RelationshipCategory = "father";
     const relativeText = newCondition.relative.toLowerCase().trim();
 
-    if (relativeText === "mother") {
+    if (relativeText.includes("guardian")) {
+      relativeCategory = "guardian";
+    } else if (
+      relativeText.includes("step") &&
+      (relativeText.includes("father") || relativeText.includes("mother"))
+    ) {
+      relativeCategory = "step_parents";
+    } else if (
+      relativeText.includes("step") &&
+      (relativeText.includes("brother") || relativeText.includes("sister"))
+    ) {
+      relativeCategory = "step_siblings";
+    } else if (
+      relativeText.includes("grandson") ||
+      relativeText.includes("granddaughter") ||
+      relativeText.includes("grandchild")
+    ) {
+      relativeCategory = "grandchildren";
+    } else if (
+      relativeText.includes("uncle") ||
+      relativeText.includes("aunt") ||
+      relativeText.includes("nephew") ||
+      relativeText.includes("niece") ||
+      relativeText.includes("cousin")
+    ) {
+      relativeCategory = "extended";
+    } else if (
+      relativeText.includes("grandparent") ||
+      relativeText.includes("grandmother") ||
+      relativeText.includes("grandfather")
+    ) {
+      relativeCategory = "grandparents";
+    } else if (relativeText === "mother") {
       relativeCategory = "mother";
     } else if (relativeText === "father") {
       relativeCategory = "father";
+    } else if (
+      relativeText.includes("son") ||
+      relativeText.includes("daughter") ||
+      relativeText.includes("child") ||
+      relativeText.includes("children")
+    ) {
+      relativeCategory = "children";
     } else if (
       relativeText.includes("sibling") ||
       relativeText.includes("sister") ||
@@ -886,44 +1062,35 @@ export default function PatientFamilyHistory({
     ) {
       relativeCategory = "siblings";
     } else if (
-      relativeText.includes("grandparent") ||
-      relativeText.includes("grandmother") ||
-      relativeText.includes("grandfather")
+      relativeText.includes("spouse") ||
+      relativeText.includes("husband") ||
+      relativeText.includes("wife") ||
+      relativeText.includes("partner")
     ) {
-      relativeCategory = "grandparents";
+      relativeCategory = "spouse";
     } else {
       relativeCategory = "father"; // default to father
     }
 
     // Create the updated family history object
     const updatedFamilyHistory = {
-      father: [...(currentHistory.father || [])],
-      mother: [...(currentHistory.mother || [])],
-      siblings: [...(currentHistory.siblings || [])],
-      grandparents: [...(currentHistory.grandparents || [])],
+      father: [...currentHistory.father],
+      mother: [...currentHistory.mother],
+      siblings: [...currentHistory.siblings],
+      children: [...currentHistory.children],
+      grandchildren: [...currentHistory.grandchildren],
+      grandparents: [...currentHistory.grandparents],
+      spouse: [...currentHistory.spouse],
+      extended: [...currentHistory.extended],
+      step_parents: [...currentHistory.step_parents],
+      step_siblings: [...currentHistory.step_siblings],
+      guardian: [...currentHistory.guardian],
     };
 
     // Add the new condition to the appropriate category
     updatedFamilyHistory[relativeCategory].push(conditionText);
 
-    // Create the complete updated medical history
-    const newMedicalHistory = {
-      allergies: patient.medicalHistory?.allergies || [],
-      medications: patient.medicalHistory?.medications || [],
-      familyHistory: updatedFamilyHistory,
-      immunizations: patient.medicalHistory?.immunizations || [],
-      socialHistory: patient.medicalHistory?.socialHistory || {},
-      chronicConditions: patient.medicalHistory?.chronicConditions || [],
-    };
-
-    // Save to database using the updated data
-    updateMedicalHistoryMutation.mutate(newMedicalHistory);
-
-    // Update local state immediately for instant UI feedback
-    onUpdate({
-      ...patient,
-      medicalHistory: newMedicalHistory,
-    });
+    saveFamilyHistoryUpdate(updatedFamilyHistory);
 
     // Reset form only after successful local update
     setNewCondition({ relative: "", condition: "", severity: "mild" });
@@ -962,7 +1129,7 @@ export default function PatientFamilyHistory({
       allergies: patient.medicalHistory?.allergies || [],
       chronicConditions: patient.medicalHistory?.chronicConditions || [],
       medications: patient.medicalHistory?.medications || [],
-      familyHistory: patient.medicalHistory?.familyHistory || {},
+      familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
       socialHistory: patient.medicalHistory?.socialHistory || {},
       immunizations: updatedImmunizations,
     });
@@ -1035,7 +1202,7 @@ export default function PatientFamilyHistory({
       allergies: patient.medicalHistory?.allergies || [],
       chronicConditions: patient.medicalHistory?.chronicConditions || [],
       medications: patient.medicalHistory?.medications || [],
-      familyHistory: patient.medicalHistory?.familyHistory || {},
+      familyHistory: normalizeFamilyHistory(patient.medicalHistory?.familyHistory),
       socialHistory: patient.medicalHistory?.socialHistory || {},
       immunizations: updatedImmunizations,
     });
@@ -1356,17 +1523,20 @@ export default function PatientFamilyHistory({
                   </div>
 
                   <div className="space-y-4">
-                    {Object.entries(familyHistory).map(
-                      ([relationship, conditions]) => (
+                    {relationshipOrder.map((relationship) => {
+                      const conditions = familyHistory[relationship];
+                      const relationshipLabel =
+                        relationshipLabels[relationship] ||
+                        relationship.charAt(0).toUpperCase() +
+                          relationship.slice(1);
+                      return (
                         <div
                           key={relationship}
                           className="border rounded-lg p-4"
                         >
                           <h5 className="font-medium mb-2 capitalize flex items-center gap-2">
                             <Heart className="h-4 w-4" />
-                            {relationship === "siblings"
-                              ? "Siblings"
-                              : relationship}
+                            {relationshipLabel}
                           </h5>
                           {conditions.length === 0 ? (
                             <p className="text-sm text-gray-500">
@@ -1386,8 +1556,8 @@ export default function PatientFamilyHistory({
                             </div>
                           )}
                         </div>
-                      ),
-                    )}
+                      );
+                    })}
                   </div>
                 </TabsContent>
 
@@ -2222,84 +2392,6 @@ export default function PatientFamilyHistory({
                 </TabsContent>
           </Tabs>
 
-          <Dialog
-            open={isImmunizationDetailsOpen}
-            onOpenChange={(open) => {
-              if (!open) {
-                closeImmunizationDetails();
-              }
-            }}
-          >
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>
-                  {selectedImmunization?.vaccine || "Immunization Details"}
-                </DialogTitle>
-              </DialogHeader>
-
-              {selectedImmunization ? (
-                <div className="space-y-3 text-sm text-gray-700">
-                  <div>
-                    <p className="text-xs uppercase tracking-wider text-gray-500">
-                      Date
-                    </p>
-                    <p className="font-semibold">
-                      {selectedImmunization.date}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wider text-gray-500">
-                      Provider
-                    </p>
-                    <p className="font-semibold">
-                      {selectedImmunization.provider}
-                    </p>
-                  </div>
-                  {selectedImmunization.lot && (
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-gray-500">
-                        Lot
-                      </p>
-                      <p className="font-semibold">
-                        {selectedImmunization.lot}
-                      </p>
-                    </div>
-                  )}
-                  {selectedImmunization.site && (
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-gray-500">
-                        Site
-                      </p>
-                      <p className="font-semibold">
-                        {selectedImmunization.site}
-                      </p>
-                    </div>
-                  )}
-                  {selectedImmunization.notes && (
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-gray-500">
-                        Notes
-                      </p>
-                      <p className="whitespace-pre-wrap text-sm text-gray-600">
-                        {selectedImmunization.notes}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  Select an immunization to view its details.
-                </p>
-              )}
-
-              <div className="flex justify-end mt-6">
-                <Button variant="outline" onClick={closeImmunizationDetails}>
-                  Close
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
           <div className="flex justify-end gap-2 mt-6">
                 <Button variant="outline" onClick={() => setIsEditing(false)}>
                   Cancel
@@ -2327,27 +2419,74 @@ export default function PatientFamilyHistory({
           </TabsList>
 
           <TabsContent value="family" className="space-y-4">
-            {Object.entries(familyHistory).map(([relationship, conditions]) => (
-              <div key={relationship} className="border rounded-lg p-4">
-                <h4 className="font-medium mb-2 capitalize flex items-center gap-2">
-                  <Heart className="h-4 w-4" />
-                  {relationship === "siblings" ? "Siblings" : relationship}
-                </h4>
-                {conditions.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    No conditions reported
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {conditions.map((condition, index) => (
-                      <Badge key={index} variant="outline">
-                        {condition}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+            {relationshipOrder.map((relationship) => {
+              const conditions = familyHistory[relationship];
+              const relationshipLabel =
+                relationshipLabels[relationship] ||
+                relationship.charAt(0).toUpperCase() + relationship.slice(1);
+              return (
+                <div key={relationship} className="border rounded-lg p-4">
+                  <h4 className="font-medium mb-2 capitalize flex items-center gap-2">
+                    <Heart className="h-4 w-4" />
+                    {relationshipLabel}
+                  </h4>
+                  {conditions.length === 0 ? (
+                    <p className="text-sm text-gray-500">No conditions reported</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {conditions.map((condition, index) => (
+                        <div
+                          key={`${relationship}-${index}`}
+                          className="flex items-center gap-2 px-3 py-1 rounded-full border bg-white shadow-sm"
+                        >
+                          <span className="text-sm">{condition}</span>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="View condition"
+                              onClick={() =>
+                                openFamilyConditionDialog(
+                                  "view",
+                                  relationship,
+                                  condition,
+                                  index,
+                                )
+                              }
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Edit condition"
+                              onClick={() =>
+                                openFamilyConditionDialog(
+                                  "edit",
+                                  relationship,
+                                  condition,
+                                  index,
+                                )
+                              }
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Delete condition"
+                              onClick={() => handleDeleteFamilyCondition(relationship, index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </TabsContent>
 
           <TabsContent value="social" className="space-y-4">
@@ -2539,7 +2678,120 @@ export default function PatientFamilyHistory({
             )}
           </TabsContent>
         </Tabs>
+        <Dialog
+          open={familyConditionDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeFamilyConditionDialog();
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {familyConditionDialogMode === "edit"
+                  ? "Edit Family Condition"
+                  : "Condition Details"}
+              </DialogTitle>
+            </DialogHeader>
+
+            {familyConditionDialogMode === "edit" ? (
+              <div className="space-y-3 mt-2">
+                <Label>Condition</Label>
+                <Textarea
+                  value={familyConditionDraft}
+                  onChange={(e) => setFamilyConditionDraft(e.target.value)}
+                  className="h-32"
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">
+                {familyConditionSelection?.condition}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 mt-6">
+              {familyConditionDialogMode === "edit" && (
+                <Button onClick={handleSaveFamilyConditionEdit} className="bg-medical-blue">
+                  Save
+                </Button>
+              )}
+              <Button variant="outline" onClick={closeFamilyConditionDialog}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
+      <Dialog
+        open={isImmunizationDetailsOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeImmunizationDetails();
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedImmunization?.vaccine || "Immunization Details"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedImmunization ? (
+            <div className="space-y-3 text-sm text-gray-700">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500">
+                  Date
+                </p>
+                <p className="font-semibold">{selectedImmunization.date}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500">
+                  Provider
+                </p>
+                <p className="font-semibold">{selectedImmunization.provider}</p>
+              </div>
+              {selectedImmunization.lot && (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-500">
+                    Lot
+                  </p>
+                  <p className="font-semibold">{selectedImmunization.lot}</p>
+                </div>
+              )}
+              {selectedImmunization.site && (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-500">
+                    Site
+                  </p>
+                  <p className="font-semibold">{selectedImmunization.site}</p>
+                </div>
+              )}
+              {selectedImmunization.notes && (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-500">
+                    Notes
+                  </p>
+                  <p className="whitespace-pre-wrap text-sm text-gray-600">
+                    {selectedImmunization.notes}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">
+              Select an immunization to view its details.
+            </p>
+          )}
+
+          <div className="flex justify-end mt-6">
+            <Button variant="outline" onClick={closeImmunizationDetails}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
