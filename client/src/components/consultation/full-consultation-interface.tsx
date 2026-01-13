@@ -4843,7 +4843,7 @@ ${
                           return;
                         }
                         setIsViewAnalysisDownloading(true);
-                      try {
+                        try {
                         console.log('[ANATOMICAL PDF STEP1] Button clicked');
                         const currentPatientId = patientId || patient?.id;
                         console.log('[ANATOMICAL PDF STEP1] Patient ID:', currentPatientId);
@@ -5763,8 +5763,8 @@ ${
                         const pdfFilename = `${currentPatientId}_anatomical_analysis_${timestamp}.pdf`;
                         console.log("[ANATOMICAL PDF STEP3] Saving PDF:", pdfFilename);
 
-                        const pdfDataUri = doc.output("datauristring");
-                        try {
+                          const pdfDataUri = doc.output("datauristring");
+                          try {
                           const token = localStorage.getItem("auth_token");
                           const pdfHeaders: Record<string, string> = {
                             "X-Tenant-Subdomain": getTenantSubdomain(),
@@ -5777,32 +5777,32 @@ ${
                           const savePdfResponse = await fetch("/api/anatomical-analysis/save-pdf", {
                             method: "POST",
                             headers: pdfHeaders,
-                            body: JSON.stringify({
-                              patientId: currentPatientId,
-                              pdfData: pdfDataUri,
-                              filename: pdfFilename,
-                            }),
+                              body: JSON.stringify({
+                                patientId: currentPatientId,
+                                pdfData: pdfDataUri,
+                                filename: pdfFilename,
+                              }),
                             credentials: "include",
-                          });
+                            });
 
-                          if (savePdfResponse.ok) {
-                            const savedPdfResult = await savePdfResponse.json();
-                            const finalFilename = savedPdfResult.filename || pdfFilename;
-                            setSavedPdfFilename(finalFilename);
-                            setShowPdfSavedModal(true);
+                            if (savePdfResponse.ok) {
+                              const savedPdfResult = await savePdfResponse.json();
+                              const finalFilename = savedPdfResult.filename || pdfFilename;
+                              setSavedPdfFilename(finalFilename);
+                              setShowPdfSavedModal(true);
                             await fetchAnatomicalFiles();
                             setAnatomicalUploadsTab("uploads");
-                            window.dispatchEvent(
-                              new CustomEvent("anatomicalFilesUpdated", {
-                                detail: { patientId: currentPatientId },
-                              }),
-                            );
-                          } else {
-                            console.error("[ANATOMICAL PDF STEP3] Failed to save PDF:", await savePdfResponse.text());
+                              window.dispatchEvent(
+                                new CustomEvent("anatomicalFilesUpdated", {
+                                  detail: { patientId: currentPatientId },
+                                }),
+                              );
+                            } else {
+                              console.error("[ANATOMICAL PDF STEP3] Failed to save PDF:", await savePdfResponse.text());
+                            }
+                          } catch (savePdfError) {
+                            console.error("[ANATOMICAL PDF STEP3] Failed to save PDF to server:", savePdfError);
                           }
-                        } catch (savePdfError) {
-                          console.error("[ANATOMICAL PDF STEP3] Failed to save PDF to server:", savePdfError);
-                        }
 
                           doc.save(pdfFilename);
                           console.log('[ANATOMICAL PDF STEP3] PDF saved successfully');
@@ -6286,7 +6286,7 @@ ${
                       <p className="text-xs text-gray-500">
                         Uploaded {format(new Date(file.uploadedAt), "PPpp")} • {formatFileSize(file.size)}
                       </p>
-                    </div>
+          </div>
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
