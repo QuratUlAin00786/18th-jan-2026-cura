@@ -741,7 +741,7 @@ export default function LabResultsPage() {
   const [orderRoleSearchOpen, setOrderRoleSearchOpen] = useState(false);
   const [orderNameSearchOpen, setOrderNameSearchOpen] = useState(false);
   const [editingStatusId, setEditingStatusId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [activeTab, setActiveTab] = useState<"request" | "generate" | "generated">("request");
   const [showTestResults, setShowTestResults] = useState(false);
 

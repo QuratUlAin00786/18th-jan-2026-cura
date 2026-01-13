@@ -5013,7 +5013,7 @@ export default function PrescriptionsPage() {
           </div>
           {isPrescriptionSearchActive && prescriptionSearchResult && (
             <Card className="border border-gray-200 bg-slate-50 dark:bg-slate-900">
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">
@@ -5033,7 +5033,7 @@ export default function PrescriptionsPage() {
                     <p className="text-xs font-semibold text-gray-500">
                       Patient
                     </p>
-                    <p className="text-sm font-medium">
+                    <p className="text-[18px] font-bold">
                       {prescriptionSearchResult.patientName || "Unknown Patient"}
                     </p>
                   </div>

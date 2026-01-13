@@ -376,7 +376,7 @@ export default function ImagingPage() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [showPaymentSuccessDialog, setShowPaymentSuccessDialog] = useState(false);
   const [showPDFViewerDialog, setShowPDFViewerDialog] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
   const [paymentSuccessData, setPaymentSuccessData] = useState<{
     invoiceId: string;
