@@ -15250,23 +15250,37 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         .parse(req.body);
 
       const organizationId = req.tenant!.id;
-      const baseDir = path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString());
-      const targetPath = path.join(baseDir, payload.filename);
+      const candidateDirs = [
+        path.join("./uploads", "anatomical_analysis_files", organizationId.toString(), patientId.toString()),
+        path.join("./uploads", "anatomical_analysis_img", organizationId.toString(), patientId.toString()),
+      ];
 
-      if (!targetPath.startsWith(baseDir)) {
-        return res.status(400).json({ error: "Invalid filename" });
+      let deleted = false;
+      for (const baseDir of candidateDirs) {
+        const targetPath = path.join(baseDir, payload.filename);
+
+        if (!targetPath.startsWith(baseDir)) {
+          continue;
+        }
+
+        const fileExists = await fs.promises
+          .access(targetPath)
+          .then(() => true)
+          .catch(() => false);
+
+        if (!fileExists) {
+          continue;
+        }
+
+        await fs.promises.unlink(targetPath);
+        deleted = true;
+        break;
       }
 
-      const fileExists = await fs.promises
-        .access(targetPath)
-        .then(() => true)
-        .catch(() => false);
-
-      if (!fileExists) {
+      if (!deleted) {
         return res.status(404).json({ error: "File not found" });
       }
 
-      await fs.promises.unlink(targetPath);
       res.json({ message: "File deleted successfully", filename: payload.filename });
     } catch (error) {
       console.error("Error deleting anatomical file:", error);

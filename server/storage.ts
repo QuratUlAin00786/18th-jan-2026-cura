@@ -68,7 +68,7 @@ import {
   type ClinicFooter, type InsertClinicFooter
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, count, not, sql, gte, lt, lte, isNotNull, or, ilike, ne } from "drizzle-orm";
+import { eq, and, desc, asc, count, not, sql, gte, lt, lte, isNotNull, isNull, or, ilike, ne } from "drizzle-orm";
 
 const GRACE_PERIOD_DAYS = 13;
 const addDays = (date: Date, days: number) => {
@@ -2099,8 +2099,11 @@ export class DatabaseStorage implements IStorage {
       })
       .where(and(
         eq(notifications.id, id),
-        eq(notifications.userId, userId),
-        eq(notifications.organizationId, organizationId)
+        eq(notifications.organizationId, organizationId),
+        or(
+          eq(notifications.userId, userId),
+          isNull(notifications.userId)
+        )
       ))
       .returning();
     return updated;
@@ -2117,7 +2120,10 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(notifications.id, id),
         eq(notifications.organizationId, organizationId),
-        eq(notifications.userId, userId)
+        or(
+          eq(notifications.userId, userId),
+          isNull(notifications.userId)
+        )
       ))
       .returning();
     return updated;
@@ -2148,8 +2154,11 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(and(
-        eq(notifications.userId, userId),
         eq(notifications.organizationId, organizationId),
+        or(
+          eq(notifications.userId, userId),
+          isNull(notifications.userId)
+        ),
         eq(notifications.status, 'unread')
       ));
   }

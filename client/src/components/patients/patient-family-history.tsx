@@ -2228,7 +2228,7 @@ export default function PatientFamilyHistory({
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="overview" className="w-full">
+        <Tabs defaultValue="family" className="w-full">
           <TabsList className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <TabsTrigger value="family">Family History</TabsTrigger>
             <TabsTrigger value="social">Social History</TabsTrigger>
@@ -2346,7 +2346,7 @@ export default function PatientFamilyHistory({
               <p className="text-sm text-gray-500 dark:text-gray-400">Checking for uploads…</p>
             ) : anatomicalFiles.length > 0 ? (
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                {anatomicalFiles.map((file) => (
+            {anatomicalFiles.map((file) => (
                   <div
                     key={file.filename}
                     className="border rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0b0c16] p-4 space-y-3 flex flex-col"
@@ -2366,9 +2366,12 @@ export default function PatientFamilyHistory({
                       )}
                     </div>
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {file.filename}
-                      </p>
+                  <a
+                    className="text-sm font-semibold text-[hsl(var(--cura-bluewave))] hover:underline"
+                    onClick={() => window.open(file.url, "_blank")}
+                  >
+                    {file.filename}
+                  </a>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         Uploaded {new Date(file.uploadedAt).toLocaleString()}
                       </p>

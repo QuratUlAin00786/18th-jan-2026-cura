@@ -138,40 +138,65 @@ export default function Patients() {
   const fetchAnatomicalFiles = useCallback(async () => {
     if (!patientId) {
       setAnatomicalFiles([]);
+      setAnatomicalFilesError("");
       return;
     }
 
     setAnatomicalFilesLoading(true);
     setAnatomicalFilesError("");
 
-    try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {
-        "X-Tenant-Subdomain": getTenantSubdomain(),
-      };
+    const token = localStorage.getItem("auth_token");
+    const headers: Record<string, string> = {
+      "X-Tenant-Subdomain": getTenantSubdomain(),
+    };
 
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`/api/anatomical-analysis/files/${patientId}`, {
-        headers,
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      setAnatomicalFiles(data.files ?? []);
-    } catch (error) {
-      console.error("Error fetching anatomical analysis files:", error);
-      setAnatomicalFiles([]);
-      setAnatomicalFilesError("Failed to load anatomical analysis files.");
-    } finally {
-      setAnatomicalFilesLoading(false);
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
+
+    const endpoints = [
+      { url: `/api/anatomical-analysis/files/${patientId}`, label: "PDF uploads" },
+      { url: `/api/anatomical-analysis/images/${patientId}`, label: "Saved images" },
+    ];
+
+    const combinedFiles: Array<{
+      filename: string;
+      url: string;
+      uploadedAt: string;
+      size: number;
+    }> = [];
+    const errors: string[] = [];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint.url, {
+          headers,
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data.files)) {
+          combinedFiles.push(...data.files);
+        }
+      } catch (error: any) {
+        console.error(`Error fetching ${endpoint.label}:`, error);
+        errors.push(`${endpoint.label} (${error?.message || "unexpected error"})`);
+      }
+    }
+
+    combinedFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    setAnatomicalFiles(combinedFiles);
+    if (combinedFiles.length === 0 && errors.length > 0) {
+      setAnatomicalFilesError(errors.join(" • "));
+    } else {
+      setAnatomicalFilesError("");
+    }
+
+    setAnatomicalFilesLoading(false);
   }, [patientId]);
 
   useEffect(() => {
@@ -317,8 +342,8 @@ export default function Patients() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Patient Summary
+                  <Mail className="h-5 w-5" />
+                  {patient.email || "Patient Summary"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">

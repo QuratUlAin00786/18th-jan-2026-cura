@@ -1272,6 +1272,16 @@ ${
   const [savedAnatomicalImage, setSavedAnatomicalImage] = useState<string | null>(null);
   const [showPdfSavedModal, setShowPdfSavedModal] = useState(false);
   const [savedPdfFilename, setSavedPdfFilename] = useState("");
+  const [savedPdfUrl, setSavedPdfUrl] = useState<string | null>(null);
+  const [savedPdfAbsolutePath, setSavedPdfAbsolutePath] = useState<string | null>(null);
+  const handlePdfModalOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setSavedPdfFilename("");
+      setSavedPdfUrl(null);
+      setSavedPdfAbsolutePath(null);
+    }
+    setShowPdfSavedModal(open);
+  }, []);
   const [isViewAnalysisDownloading, setIsViewAnalysisDownloading] = useState(false);
   const [anatomicalUploadsTab, setAnatomicalUploadsTab] = useState<"overview" | "uploads">("overview");
   const [anatomicalFiles, setAnatomicalFiles] = useState<AnatomicalUploadFile[]>([]);
@@ -5858,6 +5868,8 @@ ${
                               const savedPdfResult = await savePdfResponse.json();
                               const finalFilename = savedPdfResult.filename || pdfFilename;
                               setSavedPdfFilename(finalFilename);
+                              setSavedPdfUrl(savedPdfResult.url || null);
+                              setSavedPdfAbsolutePath(savedPdfResult.path || null);
                               setShowPdfSavedModal(true);
                             await fetchAnatomicalFiles();
                             setAnatomicalUploadsTab("uploads");
@@ -6387,7 +6399,7 @@ ${
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showPdfSavedModal} onOpenChange={setShowPdfSavedModal}>
+      <Dialog open={showPdfSavedModal} onOpenChange={handlePdfModalOpenChange}>
         <DialogContent className="max-w-sm text-center space-y-4">
           <DialogHeader>
             <DialogTitle className="flex flex-col items-center gap-2 text-xl font-semibold">
@@ -6400,8 +6412,27 @@ ${
               ? `${savedPdfFilename} has been saved to anatomical analysis uploads.`
               : "The anatomical analysis PDF has been saved."}
           </p>
+          {savedPdfAbsolutePath && (
+            <p className="text-sm text-gray-500 break-all">
+              Filesystem path:&nbsp;
+              <span className="font-semibold">{savedPdfAbsolutePath}</span>
+            </p>
+          )}
+          {savedPdfUrl && (
+            <p className="text-sm text-gray-500">
+              Saved URL:{" "}
+              <a
+                href={savedPdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-[hsl(var(--cura-bluewave))] hover:underline break-all"
+              >
+                {savedPdfUrl}
+              </a>
+            </p>
+          )}
           <div className="flex justify-center">
-            <Button onClick={() => setShowPdfSavedModal(false)}>OK</Button>
+            <Button onClick={() => handlePdfModalOpenChange(false)}>OK</Button>
           </div>
         </DialogContent>
       </Dialog>
