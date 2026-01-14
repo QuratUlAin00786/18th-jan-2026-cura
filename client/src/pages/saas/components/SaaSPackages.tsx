@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,8 @@ export default function SaaSPackages() {
   const [editingPackageId, setEditingPackageId] = useState<number | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [orderedPackages, setOrderedPackages] = useState<any[]>([]);
+  const [draggedPackageId, setDraggedPackageId] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -41,6 +43,12 @@ export default function SaaSPackages() {
   const { data: packages, isLoading } = useQuery({
     queryKey: ['/api/saas/packages'],
   });
+
+  useEffect(() => {
+    if (Array.isArray(packages)) {
+      setOrderedPackages(packages);
+    }
+  }, [packages]);
 
   const createPackageMutation = useMutation({
     mutationFn: async (packageData: any) => {
@@ -97,6 +105,22 @@ export default function SaaSPackages() {
       toast({
         title: "Error",
         description: "Failed to delete package",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const reorderPackagesMutation = useMutation({
+    mutationFn: async (order: { id: number; displayOrder: number }[]) => {
+      await saasApiRequest('PUT', '/api/saas/packages/order', { order });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/saas/packages'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to save package order",
         variant: "destructive",
       });
     },
@@ -359,8 +383,32 @@ export default function SaaSPackages() {
         
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {packages?.map((pkg: any) => (
-              <Card key={pkg.id} className="relative">
+            {orderedPackages.map((pkg: any) => (
+              <Card
+                key={pkg.id}
+                className="relative"
+                draggable
+                onDragStart={() => setDraggedPackageId(pkg.id)}
+                onDragOver={(event) => event.preventDefault()}
+                onDragEnd={() => setDraggedPackageId(null)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (draggedPackageId === null || draggedPackageId === pkg.id) return;
+                  const currentOrder = [...orderedPackages];
+                  const draggedIndex = currentOrder.findIndex((item) => item.id === draggedPackageId);
+                  const targetIndex = currentOrder.findIndex((item) => item.id === pkg.id);
+                  if (draggedIndex === -1 || targetIndex === -1) return;
+                  const [moved] = currentOrder.splice(draggedIndex, 1);
+                  currentOrder.splice(targetIndex, 0, moved);
+                  setOrderedPackages(currentOrder);
+                  const orderPayload = currentOrder.map((item, index) => ({
+                    id: item.id,
+                    displayOrder: index,
+                  }));
+                  reorderPackagesMutation.mutate(orderPayload);
+                  setDraggedPackageId(null);
+                }}
+              >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">

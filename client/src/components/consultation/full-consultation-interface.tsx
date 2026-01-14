@@ -137,6 +137,7 @@ export function FullConsultationInterface({ open, onOpenChange, patient, patient
         description: "The consultation record has been saved successfully.",
       });
       const currentPatientId = patientId || patient?.id;
+      const token = localStorage.getItem("auth_token");
       queryClient.invalidateQueries({ queryKey: ['/api/patients', currentPatientId, 'records'] });
       onOpenChange(false);
     },
@@ -1284,6 +1285,7 @@ ${
   }, []);
   const [isViewAnalysisDownloading, setIsViewAnalysisDownloading] = useState(false);
   const [anatomicalUploadsTab, setAnatomicalUploadsTab] = useState<"overview" | "uploads">("overview");
+  const [uploadsSubTab, setUploadsSubTab] = useState<"files" | "image">("files");
   const [anatomicalFiles, setAnatomicalFiles] = useState<AnatomicalUploadFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
@@ -1462,6 +1464,104 @@ ${
   const [primarySymptoms, setPrimarySymptoms] = useState<string>("");
   const [severityScale, setSeverityScale] = useState<string>("");
   const [followUpPlan, setFollowUpPlan] = useState<string>("");
+
+  const ensureAnatomicalImageSaved = useCallback(
+    async (currentPatientId: number): Promise<string | null> => {
+      if (!currentPatientId) {
+        return null;
+      }
+
+      if (savedAnatomicalImage) {
+        return savedAnatomicalImage;
+      }
+
+      if (!selectedMuscleGroup || !imageRef.current || !canvasRef.current) {
+        return null;
+      }
+
+      const image = imageRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        return null;
+      }
+
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const staticPositions = getStaticMusclePositions();
+      const musclePositions = staticPositions.filter((pos: any) => {
+        const muscleValue = pos.value.toLowerCase().replace(/\s+/g, "_");
+        return muscleValue === selectedMuscleGroup.toLowerCase();
+      });
+
+      musclePositions.forEach((position: any) => {
+        const x = position.coordinates.xPct * canvas.width;
+        const y = position.coordinates.yPct * canvas.height;
+        const radius = 20;
+
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = "rgba(255, 255, 0, 0.7)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 215, 0, 1)";
+        ctx.lineWidth = 3;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = "rgba(255, 255, 0, 0.9)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 215, 0, 1)";
+        ctx.lineWidth = 2;
+      });
+
+      const imageData = canvas.toDataURL("image/png");
+      const headers: Record<string, string> = {
+        "X-Tenant-Subdomain": getTenantSubdomain(),
+        "Content-Type": "application/json",
+      };
+      const token = localStorage.getItem("auth_token");
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch("/api/anatomical-analysis/save-image", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          patientId: currentPatientId,
+          imageData,
+          muscleGroup: selectedMuscleGroup,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save anatomical image");
+      }
+
+      const result = await response.json();
+      const fallbackImageFilename = `${currentPatientId}_${Date.now()}.png`;
+      const organizationId = tenant?.id || 0;
+      const imageFilename = result.filename || fallbackImageFilename;
+      const imagePath = `/uploads/anatomical_analysis_img/${organizationId}/${currentPatientId}/${imageFilename}`;
+      setSavedAnatomicalImage(imagePath);
+      await fetchAnatomicalImages();
+      window.dispatchEvent(
+        new CustomEvent("anatomicalFilesUpdated", {
+          detail: { patientId: currentPatientId },
+        }),
+      );
+
+      return imagePath;
+    },
+    [
+      fetchAnatomicalImages,
+      savedAnatomicalImage,
+      selectedMuscleGroup,
+      tenant?.id,
+    ],
+  );
 
   // Anatomical analysis validation state
   const [anatomicalErrors, setAnatomicalErrors] = useState({
@@ -2141,91 +2241,14 @@ ${
         return;
       }
 
-      let imagePathToUse = savedAnatomicalImage;
-      const token = localStorage.getItem("auth_token");
-
+      const imagePathToUse = await ensureAnatomicalImageSaved(currentPatientId);
       if (!imagePathToUse) {
-        if (!selectedMuscleGroup || !imageRef.current || !canvasRef.current) {
-          toast({
-            title: "Cannot Generate PDF",
-            description: "Please select a muscle group before exporting the analysis.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const image = imageRef.current;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-
-        if (!ctx) {
-          throw new Error("Canvas context is unavailable");
-        }
-
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-        const staticPositions = getStaticMusclePositions();
-        const musclePositions = staticPositions.filter((pos: any) => {
-          const muscleValue = pos.value.toLowerCase().replace(/\s+/g, "_");
-          return muscleValue === selectedMuscleGroup.toLowerCase();
+        toast({
+          title: "Cannot Generate PDF",
+          description: "Please select a muscle group and save the image first.",
+          variant: "destructive",
         });
-
-        musclePositions.forEach((position: any) => {
-          const x = position.coordinates.xPct * canvas.width;
-          const y = position.coordinates.yPct * canvas.height;
-          const radius = 20;
-
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, 2 * Math.PI);
-          ctx.fillStyle = "rgba(255, 255, 0, 0.7)";
-          ctx.fill();
-          ctx.strokeStyle = "rgba(255, 215, 0, 1)";
-          ctx.lineWidth = 3;
-
-          ctx.beginPath();
-          ctx.arc(x, y, 10, 0, 2 * Math.PI);
-          ctx.fillStyle = "rgba(255, 255, 0, 0.9)";
-          ctx.fill();
-          ctx.strokeStyle = "rgba(255, 215, 0, 1)";
-          ctx.lineWidth = 2;
-        });
-
-        const imageData = canvas.toDataURL("image/png");
-        const imageHeaders: Record<string, string> = {
-          "X-Tenant-Subdomain": getTenantSubdomain(),
-          "Content-Type": "application/json",
-        };
-        if (token) {
-          imageHeaders.Authorization = `Bearer ${token}`;
-        }
-
-        const saveResponse = await fetch("/api/anatomical-analysis/save-image", {
-          method: "POST",
-          headers: imageHeaders,
-          body: JSON.stringify({
-            patientId: currentPatientId,
-            imageData,
-            muscleGroup: selectedMuscleGroup,
-          }),
-        });
-
-        if (!saveResponse.ok) {
-          throw new Error("Failed to save image to server");
-        }
-
-        const result = await saveResponse.json();
-        const fallbackImageFilename = `${currentPatientId}_${Date.now()}.png`;
-        const organizationId = tenant?.id || 0;
-        const imageFilename = result.filename || fallbackImageFilename;
-        imagePathToUse = `/uploads/anatomical_analysis_img/${organizationId}/${currentPatientId}/${imageFilename}`;
-        setSavedAnatomicalImage(imagePathToUse);
-        window.dispatchEvent(
-          new CustomEvent("anatomicalFilesUpdated", {
-            detail: { patientId: currentPatientId },
-          }),
-        );
+        return;
       }
 
       const headers: Record<string, string> = {
@@ -2252,6 +2275,7 @@ ${
 
       const { jsPDF } = await import("jspdf");
       const doc = new jsPDF();
+      let imageUrl: string | null = imagePathToUse;
 
       let yPos = 15;
 
@@ -2645,59 +2669,225 @@ ${
     }
   };
 
-  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-    const bytes = new Uint8Array(buffer);
-    const chunkSize = 0x8000;
-    let binary = "";
-    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-      const chunk = bytes.subarray(offset, offset + chunkSize);
-      binary += String.fromCharCode.apply(null, Array.from(chunk) as any);
-    }
-    return window.btoa(binary);
-  };
-
   const saveTreatmentPlanPdfToServer = async (currentPatientId: number, treatmentPlanText: string) => {
     if (!currentPatientId || !treatmentPlanText) {
       return;
     }
 
     try {
+      const token = localStorage.getItem("auth_token");
+      const tenantHeaders: Record<string, string> = {
+        "X-Tenant-Subdomain": getTenantSubdomain(),
+      };
+      if (token) {
+        tenantHeaders.Authorization = `Bearer ${token}`;
+      }
+
+      const [headerRes, footerRes] = await Promise.all([
+        fetch("/api/clinic-headers", { headers: tenantHeaders }),
+        fetch("/api/clinic-footers", { headers: tenantHeaders }),
+      ]);
+
+      const clinicHeader = headerRes.ok ? await headerRes.json() : null;
+      const clinicFooter = footerRes.ok ? await footerRes.json() : null;
+
+      const imagePathToUse = await ensureAnatomicalImageSaved(currentPatientId);
+      if (!imagePathToUse) {
+        console.warn("[TREATMENT PLAN PDF] No annotated anatomical image available for treatment plan.");
+      }
+
       const doc = new jsPDF();
+      let yPos = 15;
+      const margin = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      if (clinicHeader) {
+        try {
+          if (clinicHeader.logoBase64) {
+            doc.addImage(clinicHeader.logoBase64, "PNG", margin, yPos, 30, 30);
+          }
+        } catch (logoError) {
+          console.warn("[TREATMENT PLAN PDF] Unable to add logo:", logoError);
+        }
+
+        const headerTextX = margin + 40;
+        let headerTextY = yPos + 5;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        if (clinicHeader.clinicName) {
+          doc.text(clinicHeader.clinicName, headerTextX, headerTextY);
+          headerTextY += 6;
+        }
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        if (clinicHeader.address) {
+          doc.text(clinicHeader.address, headerTextX, headerTextY);
+          headerTextY += 5;
+        }
+        if (clinicHeader.phone) {
+          doc.text(clinicHeader.phone, headerTextX, headerTextY);
+          headerTextY += 5;
+        }
+        if (clinicHeader.email) {
+          doc.text(clinicHeader.email, headerTextX, headerTextY);
+          headerTextY += 5;
+        }
+
+        yPos = Math.max(headerTextY, yPos + 35);
+      } else {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("Generated Treatment Plan", margin, yPos);
+        yPos += 10;
+      }
+
+      yPos += 10;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("Generated Treatment Plan", 20, 20);
+      doc.setFontSize(16);
+      doc.text("Professional Anatomical Treatment Plan", pageWidth / 2, yPos, {
+        align: "center",
+      });
+      yPos += 12;
+      doc.setFontSize(12);
+      const detailsTitleY = yPos;
+      doc.text("Analysis Details:", margin, detailsTitleY);
+      yPos += 8;
+
+      const imageUrl = imagePathToUse;
+      const imageWidth = 75;
+      const imageHeight = 95;
+      const imageX = pageWidth - margin - imageWidth;
+      const imageY = detailsTitleY - 5;
+      if (imageUrl) {
+        try {
+          const imageResponse = await fetch(imageUrl);
+          if (imageResponse.ok) {
+            const imageBlob = await imageResponse.blob();
+            const imageBase64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(imageBlob);
+            });
+            doc.addImage(imageBase64, "PNG", imageX, imageY, imageWidth, imageHeight);
+          }
+        } catch (imageError) {
+          console.error("[TREATMENT PLAN PDF] Image fetch error:", imageError);
+        }
+      }
+
+      const labelValuePairs = [
+        {
+          label: "Target Muscle Group",
+          value: selectedMuscleGroup
+            ? selectedMuscleGroup.replace(/_/g, " ").replace(/\b\w/g, (char) =>
+                char.toUpperCase(),
+              )
+            : "Not specified",
+        },
+        {
+          label: "Analysis Type",
+          value: selectedAnalysisType
+            ? selectedAnalysisType.replace(/_/g, " ")
+            : "Not specified",
+        },
+        {
+          label: "Primary Treatment",
+          value: selectedTreatment
+            ? selectedTreatment.replace(/_/g, " ").replace(/\b\w/g, (char) =>
+                char.toUpperCase(),
+              )
+            : "Not specified",
+        },
+        {
+          label: "Treatment Intensity",
+          value: selectedTreatmentIntensity || "Not specified",
+        },
+        {
+          label: "Session Frequency",
+          value: selectedSessionFrequency || "Not specified",
+        },
+        {
+          label: "Primary symptoms",
+          value: primarySymptoms || "Not specified",
+        },
+        {
+          label: "Severity Scale",
+          value: severityScale || "Not specified",
+        },
+        {
+          label: "Follow-up Plan",
+          value: followUpPlan || "Not specified",
+        },
+      ];
+
+      const infoColumnWidth = pageWidth - margin * 2 - imageWidth - 10;
+      const addField = (label: string, value: string) => {
+        const text = `${label}: ${value}`;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        const fieldLines = doc.splitTextToSize(text, infoColumnWidth);
+        fieldLines.forEach((fieldLine) => {
+          if (yPos > 265) {
+            doc.addPage();
+            yPos = 30;
+          }
+          doc.text(fieldLine, margin, yPos);
+          yPos += 4;
+        });
+        yPos += 2;
+      };
+
+      labelValuePairs.forEach((field) => addField(field.label, field.value));
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      const patientLabel = patientName?.trim()
-        || `${patient?.firstName ?? ""} ${patient?.lastName ?? ""}`.trim()
-        || `Patient #${currentPatientId}`;
-      doc.text(`Patient: ${patientLabel}`, 20, 28);
-      doc.text(`Date: ${new Date().toLocaleString()}`, 20, 34);
+      doc.setFontSize(11);
 
-      let yPos = 44;
-      const lines = doc.splitTextToSize(treatmentPlanText, 170);
-      lines.forEach((line: string) => {
-        if (yPos > 280) {
+      const planLines = doc.splitTextToSize(treatmentPlanText, pageWidth - margin * 2);
+      const planBlockTop = yPos - 5;
+      const planBlockHeight = planLines.length * 4.5 + 12;
+      const marginBottom = margin;
+      if (planBlockTop + planBlockHeight > pageHeight - marginBottom) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setDrawColor(200, 200, 200);
+      doc.setFillColor(245, 245, 245);
+      doc.rect(margin - 3, yPos - 8, pageWidth - margin * 2 + 6, planBlockHeight, "F");
+      doc.setDrawColor(205, 205, 205);
+      doc.rect(margin - 3, yPos - 8, pageWidth - margin * 2 + 6, planBlockHeight, "S");
+      doc.setFillColor(255, 255, 255);
+      planLines.forEach((line) => {
+        if (yPos > pageHeight - marginBottom) {
           doc.addPage();
           yPos = 20;
         }
-        doc.text(line, 20, yPos);
-        yPos += 6;
+        doc.text(line, margin, yPos);
+        yPos += 4.5;
       });
 
-      const pdfFilename = `${currentPatientId}_treatment_plan_${Date.now()}.pdf`;
-      const pdfArrayBuffer = doc.output("arraybuffer");
-      const pdfDataUri = `data:application/pdf;base64,${arrayBufferToBase64(pdfArrayBuffer)}`;
-      const token = localStorage.getItem("auth_token");
-      const pdfHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-Tenant-Subdomain": getTenantSubdomain(),
-      };
-
-      if (token) {
-        pdfHeaders.Authorization = `Bearer ${token}`;
+      if (clinicFooter && clinicFooter.footerText) {
+        const pageCount = doc.getNumberOfPages();
+        for (let page = 1; page <= pageCount; page += 1) {
+          doc.setPage(page);
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(10);
+          doc.text(clinicFooter.footerText, 105, 292, { align: "center" });
+        }
       }
+
+      const pdfFilename = `${currentPatientId}_treatment_plan_${Date.now()}.pdf`;
+      const rawPdfDataUri = doc.output("datauristring");
+      const pdfDataUri = rawPdfDataUri.replace(
+        /data:application\/pdf;(?:filename=[^;]+;)?base64,/,
+        "data:application/pdf;base64,",
+      );
+      const pdfHeaders = {
+        ...tenantHeaders,
+        "Content-Type": "application/json",
+      };
 
       const savePdfResponse = await fetch("/api/anatomical-analysis/save-pdf", {
         method: "POST",
@@ -6465,47 +6655,104 @@ ${
             </div>
             </TabsContent>
             <TabsContent value="uploads" className="space-y-4">
-              {filesLoading && (
-                <p className="text-sm text-gray-500">Loading anatomical analysis uploads...</p>
-              )}
-              {filesError && (
-                <p className="text-sm text-red-500">{filesError}</p>
-              )}
-              {!filesLoading && anatomicalFiles.length === 0 && (
-                <p className="text-sm text-gray-500">No anatomical analysis uploads yet.</p>
-              )}
-              {anatomicalFiles.map((file) => (
-                <Card
-                  key={file.filename}
-                  className="border border-gray-200 dark:border-gray-700"
+              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                    uploadsSubTab === "files"
+                      ? "bg-white text-gray-900"
+                      : "bg-gray-50 text-gray-500"
+                  }`}
+                  onClick={() => setUploadsSubTab("files")}
+                  type="button"
                 >
-                  <CardContent className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800 break-words">{file.filename}</p>
-                      <p className="text-xs text-gray-500">
-                        Uploaded {format(new Date(file.uploadedAt), "PPpp")} • {formatFileSize(file.size)}
-                      </p>
-          </div>
-                    <div className="flex items-center gap-2">
+                  Files
+                </button>
+                <button
+                  className={`flex-1 px-4 py-2 text-sm font-medium ${
+                    uploadsSubTab === "image"
+                      ? "bg-white text-gray-900"
+                      : "bg-gray-50 text-gray-500"
+                  }`}
+                  onClick={() => setUploadsSubTab("image")}
+                  type="button"
+                >
+                  Image
+                </button>
+              </div>
+              {uploadsSubTab === "image" && savedAnatomicalImage && (
+                <Card className="border border-dashed border-gray-300 bg-gray-50">
+                  <CardContent className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm text-gray-700">Saved Anatomical Image</h3>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => window.open(file.url, "_blank")}
+                        onClick={() => window.open(savedAnatomicalImage, "_blank")}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={deletingFile === file.filename}
-                        onClick={() => handleDeleteAnatomicalFile(file.filename)}
+                    </div>
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <p className="text-xs text-gray-500">Uploaded image used inside the generated PDFs.</p>
+                      <a
+                        href={savedAnatomicalImage}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold text-[hsl(var(--cura-bluewave))] hover:underline"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        View image
+                      </a>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              )}
+              {uploadsSubTab === "files" && (
+                <>
+                  {filesLoading && (
+                    <p className="text-sm text-gray-500">Loading anatomical analysis uploads...</p>
+                  )}
+                  {filesError && (
+                    <p className="text-sm text-red-500">{filesError}</p>
+                  )}
+                  {!filesLoading && anatomicalFiles.length === 0 && (
+                    <p className="text-sm text-gray-500">No anatomical analysis uploads yet.</p>
+                  )}
+                  {anatomicalFiles
+                    .filter((file) => !file.url.includes("/anatomical_analysis_img/"))
+                    .map((file) => (
+                    <Card
+                      key={file.filename}
+                      className="border border-gray-200 dark:border-gray-700"
+                    >
+                      <CardContent className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800 break-words">{file.filename}</p>
+                          <p className="text-xs text-gray-500">
+                            Uploaded {format(new Date(file.uploadedAt), "PPpp")} • {formatFileSize(file.size)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => window.open(file.url, "_blank")}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={deletingFile === file.filename}
+                            onClick={() => handleDeleteAnatomicalFile(file.filename)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              )}
             </TabsContent>
           </Tabs>
         </DialogContent>

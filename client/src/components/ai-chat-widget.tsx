@@ -938,9 +938,9 @@ export function AIChatWidget() {
               className="justify-start text-left h-auto py-3 px-4 hover:bg-green-50 dark:hover:bg-green-900/20"
               data-testid={`subspecialty-${subSpecialty.replace(/\s+/g, '-').toLowerCase()}`}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
-                <span>{subSpecialty}</span>
+                <span className="flex-1 text-left break-words min-w-0">{subSpecialty}</span>
                 <ChevronRight className="h-4 w-4 ml-auto" />
               </div>
             </Button>
@@ -1516,26 +1516,16 @@ export function AIChatWidget() {
 
   const quickActions = [
     {
-      label: "Book Appointment",
+      label: "Book appointments",
       icon: Calendar,
-      message: "I need to book an appointment"
+      option: "book_appointments" as const
     },
     {
-      label: "Find Prescriptions", 
+      label: "Find prescriptions",
       icon: Pill,
-      message: "Show me prescription information"
+      option: "find_prescriptions" as const
     }
   ];
-
-  const handleQuickAction = (message: string) => {
-    setInput(message);
-    // Use setTimeout to ensure state update completes before sending
-    setTimeout(() => {
-      if (message.trim()) {
-        sendMessageWithText(message.trim());
-      }
-    }, 0);
-  };
 
 
   const sendMessageWithText = async (messageText: string) => {
@@ -1813,7 +1803,7 @@ export function AIChatWidget() {
                         {message.type === 'assistant' && <Bot className="h-5 w-5 mt-0.5 flex-shrink-0" />}
                         {message.type === 'user' && <User className="h-5 w-5 mt-0.5 flex-shrink-0" />}
                         <div className="flex-1">
-                          <div className="whitespace-pre-wrap text-sm">
+                        <div className="whitespace-pre-wrap text-sm break-words break-all">
                             {(() => {
                               // Triple safety check for message content
                               if (typeof message.content !== 'string') {
@@ -1956,7 +1946,7 @@ export function AIChatWidget() {
             </ScrollArea>
 
             {messages.length === 1 && (
-              <div className="mb-4">
+              <div className="mb-2">
                 <p className="text-sm text-muted-foreground mb-3">Quick actions:</p>
                 <div className="flex flex-wrap gap-2">
                   {quickActions.map((action, index) => (
@@ -1964,18 +1954,18 @@ export function AIChatWidget() {
                       key={index}
                       variant="outline"
                       size="sm"
-                      onClick={() => handleQuickAction(action.message)}
-                      className="flex items-center gap-2"
+                      onClick={() => handleMainOptionSelection(action.option)}
+                      className="flex items-center gap-2 w-full text-left whitespace-normal"
                     >
-                      <action.icon className="h-4 w-4" />
-                      {action.label}
+                      <action.icon className="h-4 w-4 flex-shrink-0" />
+                      <span className="flex-1 text-xs sm:text-sm">{action.label}</span>
                     </Button>
                   ))}
                 </div>
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-20">
               <div className="relative flex-1">
                 <Textarea
                   value={input}

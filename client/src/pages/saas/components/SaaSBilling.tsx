@@ -1120,8 +1120,7 @@ const getReminderEntries = (metadata?: any) => {
   };
 
   useEffect(() => {
-    if (!subscriptionForm.packageId) return;
-    if (!selectedPackage) return;
+    if (!selectedPackage || subscriptionDialogMode !== "create") return;
 
     const startDate = new Date();
     const durationMonths =
@@ -1130,13 +1129,62 @@ const getReminderEntries = (metadata?: any) => {
     endDate.setMonth(endDate.getMonth() + durationMonths);
     const expiresDate = addDays(endDate, 7);
 
+    let parsedFeatures: Record<string, any> = {};
+    if (selectedPackage.features) {
+      if (typeof selectedPackage.features === "string") {
+        try {
+          parsedFeatures = JSON.parse(selectedPackage.features);
+        } catch {
+          parsedFeatures = {};
+        }
+      } else {
+        parsedFeatures = selectedPackage.features;
+      }
+    }
+
+    const maxUsersValue =
+      typeof parsedFeatures.maxUsers === "number" ? String(parsedFeatures.maxUsers) : "";
+    const maxPatientsValue =
+      typeof parsedFeatures.maxPatients === "number" ? String(parsedFeatures.maxPatients) : "";
+
     setSubscriptionForm((prev) => ({
       ...prev,
       currentPeriodStart: toDateTimeLocal(startDate),
       currentPeriodEnd: toDateTimeLocal(endDate),
       expiresAt: toDateTimeLocal(expiresDate),
+      maxUsers: maxUsersValue,
+      maxPatients: maxPatientsValue,
     }));
-  }, [selectedPackage, subscriptionDialogMode, subscriptionForm.packageId]);
+  }, [selectedPackage, subscriptionDialogMode]);
+
+  useEffect(() => {
+    if (!selectedPackage) return;
+
+    let parsedFeatures: Record<string, any> = {};
+    if (selectedPackage.features) {
+      if (typeof selectedPackage.features === "string") {
+        try {
+          parsedFeatures = JSON.parse(selectedPackage.features);
+        } catch {
+          parsedFeatures = {};
+        }
+      } else {
+        parsedFeatures = selectedPackage.features;
+      }
+    }
+
+    const maxUsersValue =
+      typeof parsedFeatures.maxUsers === "number" ? String(parsedFeatures.maxUsers) : subscriptionForm.maxUsers;
+    const maxPatientsValue =
+      typeof parsedFeatures.maxPatients === "number" ? String(parsedFeatures.maxPatients) : subscriptionForm.maxPatients;
+
+    setSubscriptionForm((prev) => ({
+      ...prev,
+      maxUsers: maxUsersValue,
+      maxPatients: maxPatientsValue,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPackage?.id]);
 
 
   const handleSaveSubscription = () => {
@@ -1535,7 +1583,8 @@ const getReminderEntries = (metadata?: any) => {
                   type="number"
                   min="0"
                   value={subscriptionForm.maxUsers}
-                  onChange={(e) => setSubscriptionForm((prev) => ({ ...prev, maxUsers: e.target.value }))}
+                  readOnly
+                  className="cursor-not-allowed bg-gray-50"
                 />
                 {subscriptionErrors.maxUsers && (
                   <p className="text-xs text-red-600 mt-1">{subscriptionErrors.maxUsers}</p>
@@ -1547,7 +1596,8 @@ const getReminderEntries = (metadata?: any) => {
                   type="number"
                   min="0"
                   value={subscriptionForm.maxPatients}
-                  onChange={(e) => setSubscriptionForm((prev) => ({ ...prev, maxPatients: e.target.value }))}
+                  readOnly
+                  className="cursor-not-allowed bg-gray-50"
                 />
                 {subscriptionErrors.maxPatients && (
                   <p className="text-xs text-red-600 mt-1">{subscriptionErrors.maxPatients}</p>

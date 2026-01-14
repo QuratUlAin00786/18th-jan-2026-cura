@@ -39,6 +39,7 @@ export const saasPackages = pgTable("saas_packages", {
   }>().default({}),
   isActive: boolean("is_active").notNull().default(true),
   showOnWebsite: boolean("show_on_website").notNull().default(false),
+  displayOrder: integer("display_order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -57,7 +57,7 @@ import { z } from "zod";
 import { Plus, Edit, Trash2, UserPlus, Shield, Stethoscope, Users, Calendar, User, TestTube, Lock, BookOpen, X, Check, LayoutGrid, LayoutList, Eye, EyeOff, ChevronsUpDown } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { toast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getTenantSubdomain, queryClient } from "@/lib/queryClient";
 import { Header } from "@/components/layout/header";
 import { getActiveSubdomain } from "@/lib/subdomain-utils";
 import { isDoctorLike } from "@/lib/role-utils";
@@ -1108,20 +1108,70 @@ export default function UserManagement() {
   });
 
   // Fetch subscription limits when modal is open
-  const { data: subscriptionLimitData, isLoading: isLoadingSubscriptionLimit } = useQuery({
-    queryKey: ["/api/users/check-subscription-limit"],
-    queryFn: async () => {
-      try {
-        const response = await apiRequest("GET", "/api/users/check-subscription-limit");
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        console.error("Subscription limit fetch error:", error);
+  const fetchSubscriptionLimit = async () => {
+    try {
+      const headers: Record<string, string> = {
+        "X-Tenant-Subdomain": getTenantSubdomain(),
+      };
+      const token = localStorage.getItem("auth_token");
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch("/api/users/check-subscription-limit", {
+        headers,
+        credentials: "include",
+      });
+
+      if (response.status === 403) {
         return null;
       }
-    },
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || response.statusText);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error("Subscription limit fetch error:", error);
+      return null;
+    }
+  };
+
+  const { data: subscriptionLimitData, isLoading: isLoadingSubscriptionLimit } = useQuery({
+    queryKey: ["/api/users/check-subscription-limit"],
+    queryFn: fetchSubscriptionLimit,
     enabled: isCreateModalOpen && !editingUser, // Only fetch when creating new user
   });
+
+  const [showSubscribeRequiredModal, setShowSubscribeRequiredModal] = useState(false);
+  const [hasDismissedSubscribePrompt, setHasDismissedSubscribePrompt] = useState(false);
+
+  useEffect(() => {
+    if (
+      isCreateModalOpen &&
+      !isLoadingSubscriptionLimit &&
+      subscriptionLimitData === null &&
+      !showSubscribeRequiredModal &&
+      !hasDismissedSubscribePrompt
+    ) {
+      setShowSubscribeRequiredModal(true);
+    }
+  }, [
+    isCreateModalOpen,
+    isLoadingSubscriptionLimit,
+    subscriptionLimitData,
+    showSubscribeRequiredModal,
+    hasDismissedSubscribePrompt,
+  ]);
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      setShowSubscribeRequiredModal(false);
+      setHasDismissedSubscribePrompt(false);
+    }
+  }, [isCreateModalOpen]);
   
   // Doctor specialty states
   const [selectedSpecialtyCategory, setSelectedSpecialtyCategory] = useState<string>("");
@@ -2937,11 +2987,7 @@ export default function UserManagement() {
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Unable to load subscription details
-                      </p>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </DialogHeader>
@@ -5223,6 +5269,31 @@ export default function UserManagement() {
                 Close
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSubscribeRequiredModal} onOpenChange={(open) => setShowSubscribeRequiredModal(open)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Subscription required</DialogTitle>
+            <DialogDescription>
+              Please subscribe to a package to add new users.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSubscribeRequiredModal(false);
+                setHasDismissedSubscribePrompt(true);
+              }}
+            >
+              Close
+            </Button>
+            <Link href={`/${getActiveSubdomain()}/subscription`}>
+              <Button>View Packages</Button>
+            </Link>
           </div>
         </DialogContent>
       </Dialog>

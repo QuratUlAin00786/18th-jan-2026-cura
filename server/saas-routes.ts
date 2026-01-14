@@ -1711,6 +1711,28 @@ The Cura EMR Team`,
     },
   );
 
+  app.put(
+    "/api/saas/packages/order",
+    verifySaaSToken,
+    async (req: Request, res: Response) => {
+      try {
+        const { order } = req.body;
+        if (!Array.isArray(order)) {
+          return res.status(400).json({ message: "Order must be an array" });
+        }
+        const sanitized = order.map((entry: any) => ({
+          id: Number(entry.id),
+          displayOrder: Number(entry.displayOrder),
+        }));
+        await storage.reorderPackages(sanitized);
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error reordering packages:", error);
+        res.status(500).json({ message: "Failed to reorder packages" });
+      }
+    },
+  );
+
   // ============================================
   // COMPREHENSIVE BILLING & PAYMENT MANAGEMENT
   // ============================================

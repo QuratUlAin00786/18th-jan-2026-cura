@@ -172,6 +172,24 @@ export default function SaaSCustomers() {
     setSearchInput(trimmed);
   };
 
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      if (!searchInput.trim()) {
+        setSearchTerm('');
+        return;
+      }
+      setSearchTerm(searchInput.trim());
+    }, 350);
+
+    return () => clearTimeout(debounce);
+  }, [searchInput]);
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!searchInput.trim()) return;
+    handleSearch();
+  };
+
   // Auto-generate subdomain from organization name
   useEffect(() => {
     if (newCustomer.name) {
@@ -458,16 +476,6 @@ export default function SaaSCustomers() {
     }
     return features;
   };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -814,43 +822,40 @@ export default function SaaSCustomers() {
         <CardContent className="space-y-6">
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Type name, domain, or email and hit Enter"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSearch();
-                  }
-                }}
-                className="pl-10 pr-10"
-              />
-              {(searchTerm || searchInput) && (
-                <button
-                  onClick={() => {
-                    setSearchTerm('');
-                    setSearchInput('');
-                  }}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 hover:text-gray-600"
-                  style={{ backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={handleSearch}
-              disabled={!searchInput.trim()}
-            >
-              <Search className="h-4 w-4" />
-              Search
-            </Button>
+            <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Type name, domain, or email and hit Enter"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="pl-10 pr-10"
+                />
+                {(searchTerm || searchInput) && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSearchInput('');
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 hover:text-gray-600"
+                    style={{ backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}
+                    type="button"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-2"
+                type="submit"
+                disabled={!searchInput.trim()}
+              >
+                <Search className="h-4 w-4" />
+                Search
+              </Button>
+            </form>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -865,7 +870,12 @@ export default function SaaSCustomers() {
           </div>
 
           {/* Customers Table */}
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-hidden relative">
+            {isLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -995,10 +1005,10 @@ export default function SaaSCustomers() {
                                   </div>
                                           <div className="flex flex-wrap gap-2">
                                             {[
-                                              { label: viewingCustomer.subscriptionStatus, type: 'status' },
-                                              { label: viewingCustomer.organizationPaymentStatus, type: 'payment' },
-                                              { label: viewingCustomer.subscriptionPaymentStatus, type: 'payment' },
-                                              { label: viewingCustomer.paymentStatus, type: 'payment' },
+                                              { label: viewingCustomer.subscriptionStatus, type: 'status' as const },
+                                              { label: viewingCustomer.organizationPaymentStatus, type: 'payment' as const },
+                                              { label: viewingCustomer.subscriptionPaymentStatus, type: 'payment' as const },
+                                              { label: viewingCustomer.paymentStatus, type: 'payment' as const },
                                             ]
                                               .filter((entry) => entry.label)
                                               .reduce((acc: { label: string; type: 'status' | 'payment' }[], entry) => {

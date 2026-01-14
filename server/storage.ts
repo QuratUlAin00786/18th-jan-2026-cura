@@ -470,6 +470,7 @@ export interface IStorage {
   createPackage(packageData: InsertSaaSPackage): Promise<SaaSPackage>;
   updatePackage(id: number, packageData: Partial<InsertSaaSPackage>): Promise<SaaSPackage>;
   deletePackage(id: number): Promise<any>;
+  reorderPackages(order: { id: number; displayOrder: number }[]): Promise<void>;
   getBillingData(searchTerm?: string, dateRange?: string): Promise<{ invoices: any[], total: number }>;
   getBillingStats(dateRange?: string): Promise<any>;
   createSaasPayment(paymentData: any): Promise<any>;
@@ -6379,6 +6380,20 @@ export class DatabaseStorage implements IStorage {
   async deletePackage(packageId: number): Promise<{ success: boolean }> {
     await db.delete(saasPackages).where(eq(saasPackages.id, packageId));
     return { success: true };
+  }
+
+  async reorderPackages(order: { id: number; displayOrder: number }[]): Promise<void> {
+    if (!Array.isArray(order) || order.length === 0) {
+      return;
+    }
+    await db.transaction(async (tx) => {
+      for (const { id, displayOrder } of order) {
+        await tx
+          .update(saasPackages)
+          .set({ displayOrder, updatedAt: new Date() })
+          .where(eq(saasPackages.id, id));
+      }
+    });
   }
 
 
