@@ -2109,6 +2109,19 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async markNotificationAsReadByOrganization(id: number, organizationId: number): Promise<Notification | undefined> {
+    const [updated] = await db
+      .update(notifications)
+      .set({
+        status: "read",
+        readAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(notifications.id, id), eq(notifications.organizationId, organizationId)))
+      .returning();
+    return updated;
+  }
+
   async markNotificationAsDismissed(id: number, userId: number, organizationId: number): Promise<Notification | undefined> {
     const [updated] = await db
       .update(notifications)
@@ -2132,15 +2145,12 @@ export class DatabaseStorage implements IStorage {
   async markNotificationAsDismissedByOrganization(id: number, organizationId: number): Promise<Notification | undefined> {
     const [updated] = await db
       .update(notifications)
-      .set({ 
-        status: 'dismissed', 
+      .set({
+        status: "dismissed",
         dismissedAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
-      .where(and(
-        eq(notifications.id, id),
-        eq(notifications.organizationId, organizationId)
-      ))
+      .where(and(eq(notifications.id, id), eq(notifications.organizationId, organizationId)))
       .returning();
     return updated;
   }
@@ -2163,14 +2173,35 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
+  async markAllNotificationsAsReadByOrganization(organizationId: number): Promise<void> {
+    await db
+      .update(notifications)
+      .set({
+        status: "read",
+        readAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(notifications.organizationId, organizationId), eq(notifications.status, "unread")));
+  }
+
   async deleteNotification(id: number, userId: number, organizationId: number): Promise<boolean> {
     const result = await db
       .delete(notifications)
       .where(and(
         eq(notifications.id, id),
-        eq(notifications.userId, userId),
-        eq(notifications.organizationId, organizationId)
+        eq(notifications.organizationId, organizationId),
+        or(
+          eq(notifications.userId, userId),
+          isNull(notifications.userId)
+        )
       ));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async deleteNotificationByOrganization(id: number, organizationId: number): Promise<boolean> {
+    const result = await db
+      .delete(notifications)
+      .where(and(eq(notifications.id, id), eq(notifications.organizationId, organizationId)));
     return (result.rowCount ?? 0) > 0;
   }
 

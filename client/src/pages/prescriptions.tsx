@@ -84,6 +84,18 @@ const formatTimestampFromSystem = (timestamp?: string | null) => {
   });
 };
 
+const formatTimestampWithAmPm = (
+  timestamp?: string | null,
+  pattern = "dd LLL yyyy h:mm a",
+) => {
+  if (!timestamp) return "Date unavailable";
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+
+  return format(date, pattern);
+};
+
 interface Prescription {
   id: string;
   patientId: string;
@@ -2853,14 +2865,19 @@ export default function PrescriptionsPage() {
         }
         
         // For other roles: search by patient name and medication name
+        const searchLower = searchQuery.toLowerCase();
+        const matchesPatientName = prescription.patientName
+          .toLowerCase()
+          .includes(searchLower);
+        const matchesPatientId = String(prescription.patientId || "")
+          .toLowerCase()
+          .includes(searchLower);
+        const matchesMedication = prescription.medications.some((med: any) =>
+          med.name.toLowerCase().includes(searchLower),
+        );
+
         const matchesSearch =
-          !searchQuery ||
-          prescription.patientName
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          prescription.medications.some((med: any) =>
-            med.name.toLowerCase().includes(searchQuery.toLowerCase()),
-          );
+          !searchQuery || matchesPatientName || matchesPatientId || matchesMedication;
 
         return matchesSearch;
       })
@@ -2886,16 +2903,27 @@ export default function PrescriptionsPage() {
         }
 
         const searchLower = searchQuery.toLowerCase();
-        const matchesSearch =
-          !searchQuery ||
+        const matchesPatientName =
           prescription.patientName?.toLowerCase().includes(searchLower) ||
+          false;
+        const patientIdMatches = String(prescription.patientId || "")
+          .toLowerCase()
+          .includes(searchLower);
+        const providerNameMatches =
           prescription.providerName?.toLowerCase().includes(searchLower) ||
           (providerNames[prescription.providerId] || "")
             .toLowerCase()
-            .includes(searchLower) ||
-          prescription.medications.some((med: any) =>
-            med.name.toLowerCase().includes(searchLower),
-          );
+            .includes(searchLower);
+        const medicationMatches = prescription.medications.some((med: any) =>
+          med.name.toLowerCase().includes(searchLower),
+        );
+
+        const matchesSearch =
+          !searchQuery ||
+          matchesPatientName ||
+          patientIdMatches ||
+          providerNameMatches ||
+          medicationMatches;
 
         const matchesStatus =
           statusFilter === "all" ||
@@ -4720,10 +4748,10 @@ export default function PrescriptionsPage() {
                                     prescription.signature.signedAt,
                                   ).getTime(),
                                 )
-                                  ? format(
-                                      new Date(prescription.signature.signedAt),
-                                      "MMM dd, yyyy HH:mm",
-                                    )
+                                ? formatTimestampWithAmPm(
+                                    prescription.signature.signedAt,
+                                    "MMM dd, yyyy h:mm a",
+                                  )
                                   : "Date not available"}
                               </p>
                             </div>
@@ -5047,14 +5075,7 @@ export default function PrescriptionsPage() {
                   </div>
                 </div>
                 <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
-                  <p>
-                    {prescriptionSearchResult.prescribedAt
-                      ? format(
-                          new Date(prescriptionSearchResult.prescribedAt),
-                          "dd LLL yyyy HH:mm",
-                        )
-                      : "Date unavailable"}
-                  </p>
+                  <p>{formatTimestampWithAmPm(prescriptionSearchResult.prescribedAt)}</p>
                   <p>•</p>
                   <p>
                     {prescriptionSearchResult.medications?.length
@@ -5082,14 +5103,14 @@ export default function PrescriptionsPage() {
                 </div>
                 <div className="space-y-4">
                   {filteredPrescriptions.map((prescription: any) => (
-                    <Card
-                      key={prescription.id || prescription.prescriptionNumber}
-                      className="border border-gray-200 dark:border-gray-700"
-                    >
-                      <CardContent className="space-y-3">
+                <Card
+                  key={prescription.id || prescription.prescriptionNumber}
+                  className="border border-gray-200 bg-slate-50 dark:border-gray-700 dark:bg-slate-900 pt-4"
+                >
+                  <CardContent className="space-y-3">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                           <div>
-                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">
+                        <p className="text-[18px] font-bold text-gray-700 dark:text-gray-100">
                               {prescription.patientName || "Unknown Patient"}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -5101,13 +5122,8 @@ export default function PrescriptionsPage() {
                             <Badge className={getStatusColor(prescription.status)}>
                               {prescription.status}
                             </Badge>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {prescription.prescribedAt
-                                ? format(
-                                    new Date(prescription.prescribedAt),
-                                    "dd LLL yyyy HH:mm",
-                                  )
-                                : "Date unavailable"}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatTimestampWithAmPm(prescription.prescribedAt)}
                             </p>
                           </div>
                         </div>
@@ -5247,12 +5263,12 @@ export default function PrescriptionsPage() {
             {!isFilterActive && displayPrescriptions.map((prescription: any) => (
               <Card
                 key={prescription.id || prescription.prescriptionNumber}
-                className="border border-gray-200 dark:border-gray-700"
+                className="border border-gray-200 bg-slate-50 dark:border-gray-700 dark:bg-slate-900 pt-4"
               >
                 <CardContent className="space-y-3">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">
+                      <p className="text-[18px] font-bold text-gray-700 dark:text-gray-100">
                         {prescription.patientName || "Unknown Patient"}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -5264,14 +5280,9 @@ export default function PrescriptionsPage() {
                       <Badge className={getStatusColor(prescription.status)}>
                         {prescription.status}
                       </Badge>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {prescription.prescribedAt
-                          ? format(
-                              new Date(prescription.prescribedAt),
-                              "dd LLL yyyy HH:mm",
-                            )
-                          : "Date unavailable"}
-                      </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatTimestampWithAmPm(prescription.prescribedAt)}
+                          </p>
                     </div>
                   </div>
 
@@ -6067,9 +6078,9 @@ export default function PrescriptionsPage() {
                       </p>
                       <p>
                         <strong>Date Prescribed:</strong>{" "}
-                        {format(
-                          new Date(selectedPrescription.prescribedAt),
-                          "MMM dd, yyyy HH:mm",
+                        {formatTimestampWithAmPm(
+                          selectedPrescription.prescribedAt,
+                          "MMM dd, yyyy h:mm a",
                         )}
                       </p>
                     </div>

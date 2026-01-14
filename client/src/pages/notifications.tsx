@@ -55,12 +55,15 @@ export default function NotificationsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedNotifications, setSelectedNotifications] = useState<number[]>([]);
+  const organizationKey = useAuth()?.user?.organizationId ?? getActiveSubdomain();
 
   // Fetch notifications
   const { user } = useAuth();
   const notificationsEndpoint = user?.role === "admin" ? "/api/notifications?limit=0" : "/api/notifications";
+  const notificationsQueryKey = ["/api/notifications", organizationKey];
+  const unreadCountQueryKey = ["/api/notifications/unread-count", organizationKey];
   const { data: notifications = [], isLoading } = useQuery<Notification[]>({
-    queryKey: [notificationsEndpoint],
+    queryKey: notificationsQueryKey,
     queryFn: async () => {
       const response = await apiRequest("GET", notificationsEndpoint);
       if (!response.ok) {
@@ -102,8 +105,9 @@ export default function NotificationsPage() {
       return apiRequest("PATCH", "/api/notifications/mark-all-read");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
+      queryClient.setQueryData(unreadCountQueryKey, { count: 0 });
+      queryClient.invalidateQueries({ queryKey: notificationsQueryKey });
+      queryClient.invalidateQueries({ queryKey: unreadCountQueryKey });
       toast({
         title: "All notifications marked as read",
         description: "All notifications have been marked as read.",
@@ -240,7 +244,7 @@ export default function NotificationsPage() {
   };
 
   const { data: unreadCountData } = useQuery({
-    queryKey: ["/api/notifications/unread-count"],
+    queryKey: unreadCountQueryKey,
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/notifications/unread-count");
       if (!response.ok) {

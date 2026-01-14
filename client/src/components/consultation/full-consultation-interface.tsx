@@ -2780,6 +2780,12 @@ ${
     }
   };
 
+  const describeFilledFields = <T extends Record<string, string | undefined>>(data: T) => {
+    return (Object.keys(data) as Array<keyof T>)
+      .filter((key) => Boolean(data[key]))
+      .join(", ");
+  };
+
   const savePhysicalExamination = async () => {
     // Validate all fields before saving
     if (!validatePhysicalExam()) {
@@ -2800,11 +2806,12 @@ ${
         .map(([system, value]) => `${system.replace('_', ' ').toUpperCase()}: ${value}`)
         .join('\n\n');
 
-      const physicalExamData = {
+    const filledPhysicalFields = describeFilledFields(consultationData.examination);
+    const physicalExamData = {
         type: "consultation",
         title: "Clinical Examination - Physical Examination Findings",
-        notes: `Comprehensive physical examination completed.\n\n${examinationNotes || 'No examination findings recorded.'}`,
-        diagnosis: `Physical examination findings - ${Object.keys(consultationData.examination).filter(key => consultationData.examination[key]).join(', ') || 'Multiple systems evaluated'}`,
+      notes: `Comprehensive physical examination completed.\n\n${examinationNotes || 'No examination findings recorded.'}`,
+      diagnosis: `Physical examination findings - ${filledPhysicalFields || 'Multiple systems evaluated'}`,
         treatment: "Physical examination completed - refer to detailed findings for treatment recommendations"
       };
 
@@ -2872,11 +2879,12 @@ ${
         })
         .join('\n\n');
 
+      const filledRespiratoryFields = describeFilledFields(respiratoryExamData);
       const respiratoryExamRecord = {
         type: "consultation",
         title: "Clinical Examination - Respiratory",
         notes: `Comprehensive respiratory examination completed.\n\n${examNotes || 'No respiratory examination findings recorded.'}`,
-        diagnosis: `Respiratory examination findings - ${Object.keys(respiratoryExamData).filter(key => respiratoryExamData[key]).join(', ') || 'Multiple parameters evaluated'}`,
+        diagnosis: `Respiratory examination findings - ${filledRespiratoryFields || 'Multiple parameters evaluated'}`,
         treatment: "Respiratory examination completed - refer to detailed findings for treatment recommendations"
       };
 
@@ -2944,11 +2952,12 @@ ${
         })
         .join('\n\n');
 
+      const filledCardiovascularFields = describeFilledFields(cardiovascularExamData);
       const cardiovascularExamRecord = {
         type: "consultation",
         title: "Clinical Examination - Cardiovascular",
         notes: `Comprehensive cardiovascular examination completed.\n\n${examNotes || 'No cardiovascular examination findings recorded.'}`,
-        diagnosis: `Cardiovascular examination findings - ${Object.keys(cardiovascularExamData).filter(key => cardiovascularExamData[key]).join(', ') || 'Multiple parameters evaluated'}`,
+        diagnosis: `Cardiovascular examination findings - ${filledCardiovascularFields || 'Multiple parameters evaluated'}`,
         treatment: "Cardiovascular examination completed - refer to detailed findings for treatment recommendations"
       };
 
@@ -3016,11 +3025,12 @@ ${
         })
         .join('\n\n');
 
+      const filledNeurologicalFields = describeFilledFields(neurologicalExamData);
       const neurologicalExamRecord = {
         type: "consultation",
         title: "Clinical Examination - Neurological Examination",
         notes: `Comprehensive neurological examination completed.\n\n${examNotes || 'No neurological examination findings recorded.'}`,
-        diagnosis: `Neurological examination findings - ${Object.keys(neurologicalExamData).filter(key => neurologicalExamData[key]).join(', ') || 'Multiple parameters evaluated'}`,
+        diagnosis: `Neurological examination findings - ${filledNeurologicalFields || 'Multiple parameters evaluated'}`,
         treatment: "Neurological examination completed - refer to detailed findings for treatment recommendations"
       };
 
@@ -5905,7 +5915,11 @@ ${
                       }
                     }}
                     disabled={isViewAnalysisDownloading}
-                    className="bg-purple-600 hover:bg-purple-700 px-6"
+                    className={`px-6 rounded transition ${
+                      isViewAnalysisDownloading
+                        ? "bg-gray-200 text-gray-500 border border-gray-300 cursor-not-allowed"
+                        : "bg-purple-600 text-white border border-transparent hover:bg-purple-700"
+                    }`}
                   >
                     {isViewAnalysisDownloading ? "Downloading..." : "View Anatomical Analysis"}
                   </Button>

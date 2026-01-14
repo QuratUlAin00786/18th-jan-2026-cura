@@ -104,7 +104,7 @@ export function NotificationBell() {
   });
 
   const totalNotifications = (totalNotificationsData as { count: number })?.count || notifications.length;
-  const badgeCount = user?.role === "admin" ? totalNotifications : unreadCount;
+  const badgeCount = unreadCount;
   const visibleNotifications = notifications.filter(
     (notification) => notification.status !== "dismissed" && notification.status !== "archived",
   );

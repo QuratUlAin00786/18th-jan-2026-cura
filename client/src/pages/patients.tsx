@@ -347,12 +347,13 @@ export default function Patients() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 dark:text-white">Contact Information</p>
-                  <p className="text-sm text-gray-600 dark:text-neutral-300">{patient.phone}</p>
-                  <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-neutral-300">
+                <div className="space-y-1 text-sm text-gray-600 dark:text-neutral-300">
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">
+                    {patient.phone || "Phone number unavailable"}
+                  </p>
+                  <div className="flex items-center gap-1">
                     <Mail className="h-4 w-4 text-gray-500 dark:text-neutral-400" />
-                    <span>{patient.email}</span>
+                    <span className="text-sm">{patient.email || "Email unavailable"}</span>
                   </div>
                 </div>
                 <div>
