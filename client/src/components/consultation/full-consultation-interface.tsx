@@ -2645,6 +2645,91 @@ ${
     }
   };
 
+  const saveTreatmentPlanPdfToServer = async (currentPatientId: number, treatmentPlanText: string) => {
+    if (!currentPatientId || !treatmentPlanText) {
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("Generated Treatment Plan", 20, 20);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const patientLabel = patientName?.trim()
+        || `${patient?.firstName ?? ""} ${patient?.lastName ?? ""}`.trim()
+        || `Patient #${currentPatientId}`;
+      doc.text(`Patient: ${patientLabel}`, 20, 28);
+      doc.text(`Date: ${new Date().toLocaleString()}`, 20, 34);
+
+      let yPos = 44;
+      const lines = doc.splitTextToSize(treatmentPlanText, 170);
+      lines.forEach((line: string) => {
+        if (yPos > 280) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(line, 20, yPos);
+        yPos += 6;
+      });
+
+      const pdfFilename = `${currentPatientId}_treatment_plan_${Date.now()}.pdf`;
+      const pdfDataUri = doc.output("datauristring");
+      const token = localStorage.getItem("auth_token");
+      const pdfHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-Tenant-Subdomain": getTenantSubdomain(),
+      };
+
+      if (token) {
+        pdfHeaders.Authorization = `Bearer ${token}`;
+      }
+
+      const savePdfResponse = await fetch("/api/anatomical-analysis/save-pdf", {
+        method: "POST",
+        headers: pdfHeaders,
+        body: JSON.stringify({
+          patientId: currentPatientId,
+          pdfData: pdfDataUri,
+          filename: pdfFilename,
+        }),
+        credentials: "include",
+      });
+
+      if (savePdfResponse.ok) {
+        const savedPdfResult = await savePdfResponse.json();
+        console.log("[TREATMENT PLAN PDF] Saved:", savedPdfResult.path || savedPdfResult.filename);
+        await fetchAnatomicalFiles();
+        setAnatomicalUploadsTab("uploads");
+        window.dispatchEvent(
+          new CustomEvent("anatomicalFilesUpdated", {
+            detail: { patientId: currentPatientId },
+          }),
+        );
+        toast({
+          title: "Treatment Plan Saved",
+          description: "The generated treatment plan PDF is now stored in your anatomical analysis uploads.",
+        });
+      } else {
+        console.error("[TREATMENT PLAN PDF] Failed to save PDF:", await savePdfResponse.text());
+        toast({
+          title: "Save Failed",
+          description: "Unable to persist the treatment plan PDF. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (pdfError) {
+      console.error("[TREATMENT PLAN PDF] Error saving PDF:", pdfError);
+      toast({
+        title: "Save Failed",
+        description: "Unable to persist the treatment plan PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const generateTreatmentPlan = async () => {
     // Validate all fields before generating plan
     if (!validateAnatomicalFields()) {
@@ -2692,6 +2777,7 @@ ${
 
       const data = await response.json();
       setGeneratedTreatmentPlan(data.treatmentPlan);
+      void saveTreatmentPlanPdfToServer(currentPatientId, data.treatmentPlan);
       
       toast({
         title: "Treatment Plan Generated",
