@@ -2645,6 +2645,17 @@ ${
     }
   };
 
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      const chunk = bytes.subarray(offset, offset + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk) as any);
+    }
+    return window.btoa(binary);
+  };
+
   const saveTreatmentPlanPdfToServer = async (currentPatientId: number, treatmentPlanText: string) => {
     if (!currentPatientId || !treatmentPlanText) {
       return;
@@ -2676,7 +2687,8 @@ ${
       });
 
       const pdfFilename = `${currentPatientId}_treatment_plan_${Date.now()}.pdf`;
-      const pdfDataUri = doc.output("datauristring");
+      const pdfArrayBuffer = doc.output("arraybuffer");
+      const pdfDataUri = `data:application/pdf;base64,${arrayBufferToBase64(pdfArrayBuffer)}`;
       const token = localStorage.getItem("auth_token");
       const pdfHeaders: Record<string, string> = {
         "Content-Type": "application/json",
