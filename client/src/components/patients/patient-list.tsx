@@ -35,6 +35,7 @@ import {
   Check,
   DollarSign,
   CreditCard,
+  Mail,
 } from "lucide-react";
 import {
   Tooltip,
@@ -2857,7 +2858,10 @@ export function PatientList({ onSelectPatient, genderFilter = null, viewMode = "
                     Risk
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Status
+                    Email
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Remind / Flag
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
@@ -2921,13 +2925,47 @@ export function PatientList({ onSelectPatient, genderFilter = null, viewMode = "
                         </Badge>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm">
-                      <div className="flex flex-col gap-1">
-                        {patient.isInsured && (
-                          <Badge className="text-xs text-black" style={{ backgroundColor: "#FFFACD" }}>
-                            Insured
-                          </Badge>
-                        )}
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        <span className="truncate">{patient.email || "No email"}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleRemindPatient(patient)}
+                                className="h-7 w-7 p-0"
+                                data-testid={`button-remind-${patient.id}`}
+                              >
+                                <Bell className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Send reminder</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleFlagPatient(patient)}
+                                className="h-7 w-7 p-0"
+                                data-testid={`button-flag-${patient.id}`}
+                              >
+                                <Flag className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add flag</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-right">
@@ -3207,7 +3245,7 @@ export function PatientList({ onSelectPatient, genderFilter = null, viewMode = "
                     )}
                     {patient.email && (
                       <div className="flex items-center truncate">
-                        <User className="h-4 w-4 mr-2 text-gray-600 dark:text-gray-300" />
+                        <Mail className="h-4 w-4 mr-2 text-gray-600 dark:text-gray-300" />
                         <span className="text-neutral-600 dark:text-neutral-300 truncate">
                           {patient.email}
                         </span>
