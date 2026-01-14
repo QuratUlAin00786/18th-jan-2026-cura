@@ -1728,6 +1728,12 @@ The Cura EMR Team`,
         res.json({ success: true });
       } catch (error) {
         console.error("Error reordering packages:", error);
+        const message = (error instanceof Error ? error.message : "") as string;
+        if (message.toLowerCase().includes("display_order")) {
+          return res.status(500).json({
+            message: "Missing database column `display_order`. Please run the migration before reordering packages.",
+          });
+        }
         res.status(500).json({ message: "Failed to reorder packages" });
       }
     },

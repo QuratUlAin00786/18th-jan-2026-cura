@@ -6346,7 +6346,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllPackages(): Promise<SaaSPackage[]> {
-    return await db.select().from(saasPackages).orderBy(desc(saasPackages.createdAt));
+    try {
+      return await db.select().from(saasPackages).orderBy(desc(saasPackages.createdAt));
+    } catch (error: any) {
+      const message = (error?.message || "").toLowerCase();
+      if (message.includes("display_order") || message.includes("display order")) {
+        const selection = {
+          id: saasPackages.id,
+          name: saasPackages.name,
+          description: saasPackages.description,
+          price: saasPackages.price,
+          billingCycle: saasPackages.billingCycle,
+          stripePriceId: saasPackages.stripePriceId,
+          features: saasPackages.features,
+          isActive: saasPackages.isActive,
+          showOnWebsite: saasPackages.showOnWebsite,
+          createdAt: saasPackages.createdAt,
+          updatedAt: saasPackages.updatedAt,
+        };
+        const packages = await db.select(selection).from(saasPackages).orderBy(desc(saasPackages.createdAt));
+        return packages.map((pkg) => ({
+          ...pkg,
+          displayOrder: 0,
+        }));
+      }
+      throw error;
+    }
   }
 
   async getPackageById(packageId: number): Promise<SaaSPackage | undefined> {
