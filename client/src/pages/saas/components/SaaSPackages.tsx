@@ -36,6 +36,7 @@ export default function SaaSPackages() {
   const [successMessage, setSuccessMessage] = useState("");
   const [orderedPackages, setOrderedPackages] = useState<any[]>([]);
   const [draggedPackageId, setDraggedPackageId] = useState<number | null>(null);
+  const [packageViewMode, setPackageViewMode] = useState<'grid' | 'list'>('grid');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -117,10 +118,10 @@ export default function SaaSPackages() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/saas/packages'] });
     },
-    onError: (error: any) => {
+    onError: () => {
       toast({
         title: "Error",
-        description: error?.message || "Failed to save package order",
+        description: "Reordering packages is currently unavailable.",
         variant: "destructive",
       });
     },
@@ -356,12 +357,29 @@ export default function SaaSPackages() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-2">
               <Package className="h-5 w-5 text-blue-600" />
               <span>Package Management</span>
             </CardTitle>
-            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">View:</span>
+            <Button
+              variant={packageViewMode === 'list' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPackageViewMode('list')}
+            >
+              List
+            </Button>
+            <Button
+              variant={packageViewMode === 'grid' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPackageViewMode('grid')}
+            >
+              Grid
+            </Button>
+          </div>
+          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
               <DialogTrigger asChild>
                 <Button className="flex items-center space-x-2">
                   <Plus className="h-4 w-4" />
@@ -383,32 +401,35 @@ export default function SaaSPackages() {
         
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {orderedPackages.map((pkg: any) => (
-              <Card
-                key={pkg.id}
-                className="relative"
-                draggable
-                onDragStart={() => setDraggedPackageId(pkg.id)}
-                onDragOver={(event) => event.preventDefault()}
-                onDragEnd={() => setDraggedPackageId(null)}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (draggedPackageId === null || draggedPackageId === pkg.id) return;
-                  const currentOrder = [...orderedPackages];
-                  const draggedIndex = currentOrder.findIndex((item) => item.id === draggedPackageId);
-                  const targetIndex = currentOrder.findIndex((item) => item.id === pkg.id);
-                  if (draggedIndex === -1 || targetIndex === -1) return;
-                  const [moved] = currentOrder.splice(draggedIndex, 1);
-                  currentOrder.splice(targetIndex, 0, moved);
-                  setOrderedPackages(currentOrder);
-                  const orderPayload = currentOrder.map((item, index) => ({
-                    id: item.id,
-                    displayOrder: index,
-                  }));
-                  reorderPackagesMutation.mutate(orderPayload);
-                  setDraggedPackageId(null);
-                }}
-              >
+          {orderedPackages.map((pkg: any) => (
+            <Card
+              key={pkg.id}
+              className="relative"
+              draggable
+              onDragStart={() => setDraggedPackageId(pkg.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDragEnd={() => setDraggedPackageId(null)}
+              onDrop={(event) => {
+                event.preventDefault();
+                const prevOrder = [...orderedPackages];
+                if (draggedPackageId === null || draggedPackageId === pkg.id) return;
+                const currentOrder = [...orderedPackages];
+                const draggedIndex = currentOrder.findIndex((item) => item.id === draggedPackageId);
+                const targetIndex = currentOrder.findIndex((item) => item.id === pkg.id);
+                if (draggedIndex === -1 || targetIndex === -1) return;
+                const [moved] = currentOrder.splice(draggedIndex, 1);
+                currentOrder.splice(targetIndex, 0, moved);
+                setOrderedPackages(currentOrder);
+                const orderPayload = currentOrder.map((item, index) => ({
+                  id: item.id,
+                  displayOrder: index,
+                }));
+                reorderPackagesMutation.mutate(orderPayload, {
+                  onError: () => setOrderedPackages(prevOrder),
+                });
+                setDraggedPackageId(null);
+              }}
+            >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
