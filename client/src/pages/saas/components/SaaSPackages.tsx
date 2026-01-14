@@ -111,6 +111,220 @@ export default function SaaSPackages() {
     },
   });
 
+  const renderPackageCard = (pkg: any, viewMode: 'grid' | 'list') => {
+    const isList = viewMode === 'list';
+    const features = pkg.features || {};
+    const maxUsers = features.maxUsers ?? '—';
+    const maxPatients = features.maxPatients ?? '—';
+    const storageGB = features.storageGB ?? 0;
+    const apiCalls = features.apiCallsPerMonth ?? 0;
+    return (
+      <Card
+        key={pkg.id}
+        className={`relative ${isList ? 'overflow-hidden' : ''}`}
+        draggable
+        onDragStart={() => setDraggedPackageId(pkg.id)}
+        onDragOver={(event) => event.preventDefault()}
+        onDragEnd={() => setDraggedPackageId(null)}
+        onDrop={(event) => {
+          event.preventDefault();
+          const prevOrder = [...orderedPackages];
+          if (draggedPackageId === null || draggedPackageId === pkg.id) return;
+          const currentOrder = [...orderedPackages];
+          const draggedIndex = currentOrder.findIndex((item) => item.id === draggedPackageId);
+          const targetIndex = currentOrder.findIndex((item) => item.id === pkg.id);
+          if (draggedIndex === -1 || targetIndex === -1) return;
+          const [moved] = currentOrder.splice(draggedIndex, 1);
+          currentOrder.splice(targetIndex, 0, moved);
+          setOrderedPackages(currentOrder);
+          const orderPayload = currentOrder.map((item, index) => ({
+            id: item.id,
+            displayOrder: index,
+          }));
+          reorderPackagesMutation.mutate(orderPayload, {
+            onError: () => setOrderedPackages(prevOrder),
+          });
+          setDraggedPackageId(null);
+        }}
+      >
+        {!isList && (
+          <>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Crown className="h-5 w-5 text-yellow-600" />
+                  <CardTitle className="text-lg">{pkg.name}</CardTitle>
+                </div>
+                <div className="flex space-x-2">
+                  <Badge variant={pkg.isActive ? "default" : "secondary"}>
+                    {pkg.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                  {pkg.showOnWebsite && (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      Live on Website
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <p className="text-2xl font-bold">
+                £{pkg.price}
+                <span className="text-sm font-normal text-gray-500">
+                  /{pkg.billingCycle}
+                </span>
+              </p>
+              {pkg.description && (
+                <p className="text-sm text-gray-600">{pkg.description}</p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center space-x-1">
+                    <Users className="h-4 w-4" />
+                    <span>Users</span>
+                  </span>
+                  <span>{maxUsers}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center space-x-1">
+                    <Database className="h-4 w-4" />
+                    <span>Storage</span>
+                  </span>
+                  <span>{storageGB} GB</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center space-x-1">
+                    <Zap className="h-4 w-4" />
+                    <span>API Calls</span>
+                  </span>
+                  <span>
+                    {apiCalls.toLocaleString()}/mo
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                {features.aiEnabled && (
+                  <div className="flex items-center space-x-2 text-sm text-green-600">
+                    <Shield className="h-3 w-3" />
+                    <span>AI Features</span>
+                  </div>
+                )}
+                {features.telemedicineEnabled && (
+                  <div className="flex items-center space-x-2 text-sm text-green-600">
+                    <Shield className="h-3 w-3" />
+                    <span>Telemedicine</span>
+                  </div>
+                )}
+                {features.prioritySupport && (
+                  <div className="flex items-center space-x-2 text-sm text-green-600">
+                    <Shield className="h-3 w-3" />
+                    <span>Priority Support</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2 pt-4">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingPackage(pkg);
+                    setEditingPackageId(pkg.id);
+                  }}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => deletePackageMutation.mutate(pkg.id)}
+                  disabled={deletePackageMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </>
+        )}
+        {isList && (
+          <CardContent className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:gap-6">
+                <div className="flex flex-1 flex-col gap-1">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-base font-semibold text-gray-900">{pkg.name}</p>
+                      {pkg.description && (
+                        <p className="text-sm text-muted-foreground">{pkg.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={pkg.isActive ? "default" : "secondary"}>
+                        {pkg.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      {pkg.showOnWebsite && (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-200"
+                        >
+                          Live on Website
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span>{maxUsers} Users</span>
+                    <span>{maxPatients} Patients</span>
+                    <span>{storageGB} GB Storage</span>
+                    <span>{apiCalls.toLocaleString()} API Calls</span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    {features.aiEnabled && <span className="text-green-600">AI</span>}
+                    {features.telemedicineEnabled && (
+                      <span className="text-green-600">Telemedicine</span>
+                    )}
+                    {features.billingEnabled && <span className="text-green-600">Billing</span>}
+                    {features.prioritySupport && (
+                      <span className="text-green-600">Priority Support</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end gap-1 text-right text-sm text-muted-foreground">
+                  <span className="text-xs uppercase tracking-wide text-gray-500">Price</span>
+                  <p className="text-lg font-semibold text-gray-900">
+                    £{pkg.price}
+                    <span className="text-xs font-normal text-gray-500">/{pkg.billingCycle}</span>
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingPackage(pkg);
+                      setEditingPackageId(pkg.id);
+                    }}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => deletePackageMutation.mutate(pkg.id)}
+                    disabled={deletePackageMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+      </Card>
+    );
+  };
+
   const reorderPackagesMutation = useMutation({
     mutationFn: async (order: { id: number; displayOrder: number }[]) => {
       await saasApiRequest('PUT', '/api/saas/packages/order', { order });
@@ -357,29 +571,13 @@ export default function SaaSPackages() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-        <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-2">
               <Package className="h-5 w-5 text-blue-600" />
               <span>Package Management</span>
             </CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">View:</span>
-            <Button
-              variant={packageViewMode === 'list' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPackageViewMode('list')}
-            >
-              List
-            </Button>
-            <Button
-              variant={packageViewMode === 'grid' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPackageViewMode('grid')}
-            >
-              Grid
-            </Button>
-          </div>
-          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+            <div className="flex items-center gap-2">
+              <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
               <DialogTrigger asChild>
                 <Button className="flex items-center space-x-2">
                   <Plus className="h-4 w-4" />
@@ -396,142 +594,39 @@ export default function SaaSPackages() {
                 />
               </DialogContent>
             </Dialog>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">View:</span>
+              <Button
+                variant={packageViewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setPackageViewMode('list')}
+              >
+                List
+              </Button>
+              <Button
+                variant={packageViewMode === 'grid' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setPackageViewMode('grid')}
+              >
+                Grid
+              </Button>
+            </div>
+            </div>
           </div>
         </CardHeader>
         
         <CardContent>
+        {packageViewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {orderedPackages.map((pkg: any) => (
-            <Card
-              key={pkg.id}
-              className="relative"
-              draggable
-              onDragStart={() => setDraggedPackageId(pkg.id)}
-              onDragOver={(event) => event.preventDefault()}
-              onDragEnd={() => setDraggedPackageId(null)}
-              onDrop={(event) => {
-                event.preventDefault();
-                const prevOrder = [...orderedPackages];
-                if (draggedPackageId === null || draggedPackageId === pkg.id) return;
-                const currentOrder = [...orderedPackages];
-                const draggedIndex = currentOrder.findIndex((item) => item.id === draggedPackageId);
-                const targetIndex = currentOrder.findIndex((item) => item.id === pkg.id);
-                if (draggedIndex === -1 || targetIndex === -1) return;
-                const [moved] = currentOrder.splice(draggedIndex, 1);
-                currentOrder.splice(targetIndex, 0, moved);
-                setOrderedPackages(currentOrder);
-                const orderPayload = currentOrder.map((item, index) => ({
-                  id: item.id,
-                  displayOrder: index,
-                }));
-                reorderPackagesMutation.mutate(orderPayload, {
-                  onError: () => setOrderedPackages(prevOrder),
-                });
-                setDraggedPackageId(null);
-              }}
-            >
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Crown className="h-5 w-5 text-yellow-600" />
-                      <CardTitle className="text-lg">{pkg.name}</CardTitle>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Badge variant={pkg.isActive ? "default" : "secondary"}>
-                        {pkg.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                      {pkg.showOnWebsite && (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          Live on Website
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-2xl font-bold">
-                    £{pkg.price}
-                    <span className="text-sm font-normal text-gray-500">
-                      /{pkg.billingCycle}
-                    </span>
-                  </p>
-                  {pkg.description && (
-                    <p className="text-sm text-gray-600">{pkg.description}</p>
-                  )}
-                </CardHeader>
-                
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center space-x-1">
-                        <Users className="h-4 w-4" />
-                        <span>Users</span>
-                      </span>
-                      <span>{pkg.features.maxUsers}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center space-x-1">
-                        <Database className="h-4 w-4" />
-                        <span>Storage</span>
-                      </span>
-                      <span>{pkg.features.storageGB} GB</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center space-x-1">
-                        <Zap className="h-4 w-4" />
-                        <span>API Calls</span>
-                      </span>
-                      <span>
-                        {(pkg.features?.apiCallsPerMonth ?? 0).toLocaleString()}/mo
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    {pkg.features.aiEnabled && (
-                      <div className="flex items-center space-x-2 text-sm text-green-600">
-                        <Shield className="h-3 w-3" />
-                        <span>AI Features</span>
-                      </div>
-                    )}
-                    {pkg.features.telemedicineEnabled && (
-                      <div className="flex items-center space-x-2 text-sm text-green-600">
-                        <Shield className="h-3 w-3" />
-                        <span>Telemedicine</span>
-                      </div>
-                    )}
-                    {pkg.features.prioritySupport && (
-                      <div className="flex items-center space-x-2 text-sm text-green-600">
-                        <Shield className="h-3 w-3" />
-                        <span>Priority Support</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center space-x-2 pt-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingPackage(pkg);
-                          setEditingPackageId(pkg.id);
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => deletePackageMutation.mutate(pkg.id)}
-                      disabled={deletePackageMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {orderedPackages.map((pkg: any) => renderPackageCard(pkg, 'grid'))}
           </div>
+        ) : (
+          <div className="space-y-4">
+            {orderedPackages.map((pkg: any) => renderPackageCard(pkg, 'list'))}
+          </div>
+        )}
 
-          {packages?.length === 0 && (
+          {orderedPackages.length === 0 && (
             <div className="text-center py-8 text-gray-500">
               No packages created yet. Create your first package to get started.
             </div>
@@ -548,7 +643,7 @@ export default function SaaSPackages() {
           }
         }}
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Package</DialogTitle>
           </DialogHeader>

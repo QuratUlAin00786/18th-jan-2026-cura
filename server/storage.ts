@@ -6347,7 +6347,11 @@ export class DatabaseStorage implements IStorage {
 
   async getAllPackages(): Promise<SaaSPackage[]> {
     try {
-      return await db.select().from(saasPackages).orderBy(desc(saasPackages.createdAt));
+      return await db
+        .select()
+        .from(saasPackages)
+        .orderBy(asc(saasPackages.displayOrder))
+        .orderBy(desc(saasPackages.createdAt));
     } catch (error: any) {
       const message = (error?.message || "").toLowerCase();
       if (message.includes("display_order") || message.includes("display order")) {

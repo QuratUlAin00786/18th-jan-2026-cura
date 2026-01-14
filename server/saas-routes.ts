@@ -1681,6 +1681,34 @@ The Cura EMR Team`,
   );
 
   app.put(
+    "/api/saas/packages/order",
+    verifySaaSToken,
+    async (req: Request, res: Response) => {
+      try {
+        const { order } = req.body;
+        if (!Array.isArray(order)) {
+          return res.status(400).json({ message: "Order must be an array" });
+        }
+        const sanitized = order.map((entry: any) => ({
+          id: Number(entry.id),
+          displayOrder: Number(entry.displayOrder),
+        }));
+        await storage.reorderPackages(sanitized);
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error reordering packages:", error);
+        const message = (error instanceof Error ? error.message : "") as string;
+        if (message.toLowerCase().includes("display_order")) {
+          return res.status(500).json({
+            message: "Missing database column `display_order`. Please run the migration before reordering packages.",
+          });
+        }
+        res.status(500).json({ message: "Failed to reorder packages" });
+      }
+    },
+  );
+
+  app.put(
     "/api/saas/packages/:id",
     verifySaaSToken,
     async (req: Request, res: Response) => {
@@ -1707,34 +1735,6 @@ The Cura EMR Team`,
       } catch (error) {
         console.error("Error deleting package:", error);
         res.status(500).json({ message: "Failed to delete package" });
-      }
-    },
-  );
-
-  app.put(
-    "/api/saas/packages/order",
-    verifySaaSToken,
-    async (req: Request, res: Response) => {
-      try {
-        const { order } = req.body;
-        if (!Array.isArray(order)) {
-          return res.status(400).json({ message: "Order must be an array" });
-        }
-        const sanitized = order.map((entry: any) => ({
-          id: Number(entry.id),
-          displayOrder: Number(entry.displayOrder),
-        }));
-        await storage.reorderPackages(sanitized);
-        res.json({ success: true });
-      } catch (error) {
-        console.error("Error reordering packages:", error);
-        const message = (error instanceof Error ? error.message : "") as string;
-        if (message.toLowerCase().includes("display_order")) {
-          return res.status(500).json({
-            message: "Missing database column `display_order`. Please run the migration before reordering packages.",
-          });
-        }
-        res.status(500).json({ message: "Failed to reorder packages" });
       }
     },
   );

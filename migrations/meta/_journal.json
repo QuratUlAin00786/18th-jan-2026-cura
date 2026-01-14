@@ -15,6 +15,20 @@
       "when": 1765428813045,
       "tag": "0001_pink_colonel_america",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768387557926,
+      "tag": "0002_rich_azazel",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1705300000000,
+      "tag": "0003_display_order_saas_packages",
+      "breakpoints": true
     }
   ]
 }
