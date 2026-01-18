@@ -45,6 +45,26 @@ import { queryClient } from "@/lib/queryClient";
 import jsPDF from "jspdf";
 import { useTenant } from "@/hooks/use-tenant";
 
+const fetchImageAsBase64 = async (imagePath: string): Promise<string | null> => {
+  try {
+    const response = await fetch(imagePath);
+    if (!response.ok) {
+      console.warn("Image fetch failed:", response.status, response.statusText);
+      return null;
+    }
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Failed to fetch image:", error);
+    return null;
+  }
+};
+
 import updatedFacialMuscleImage from "@assets/generated_images/Updated_facial_muscle_diagram.png";
 import cleanFacialOutlineV2Image from "@assets/generated_images/Clean_facial_outline_v2.png";
 
