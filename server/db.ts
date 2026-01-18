@@ -15,7 +15,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 export const pool = new Pool({ 
-  connectionString: 'postgresql://curauser24nov25:cura_123@185.185.126.58:5432/Cura24nov2025',
+  connectionString: 'postgresql://curauser24nov25:cura_123@185.185.126.58:5432/cura24nov2025',
   max: 10, // Maximum number of connections in pool
   idleTimeoutMillis: 10000, // 10 seconds idle timeout
   maxUses: 7500, // Maximum uses per connection before renewal

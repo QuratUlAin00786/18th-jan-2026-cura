@@ -43,6 +43,41 @@ const formatLocalDateTime = (date: Date) => {
   return localDate.toISOString().slice(0, 16);
 };
 
+const DELETE_TABLE_LABELS: Record<string, string> = {
+  users: "Users",
+  patients: "Patients",
+  appointments: "Appointments",
+  labResults: "Lab Results",
+  medicalImages: "Medical Images",
+  prescriptions: "Prescriptions",
+  notifications: "Notifications",
+  subscriptions: "Subscriptions",
+  invoices: "Invoices",
+  payments: "Payments",
+  roles: "Roles",
+  staffShifts: "Staff Shifts",
+  doctorDefaultShifts: "Doctor Default Shifts",
+  symptomChecks: "Symptom Checks",
+  organizations: "Organization",
+  formResponseValues: "Form Response Values",
+  formResponses: "Form Responses",
+  formShareLogs: "Form Share Logs",
+  formShares: "Form Shares",
+  formFields: "Form Fields",
+  formSections: "Form Sections",
+  forms: "Forms",
+  treatments: "Treatments",
+  treatmentsInfo: "Treatments Info",
+};
+
+const formatDeleteTableLabel = (key: string) => {
+  const label = DELETE_TABLE_LABELS[key];
+  if (label) return label;
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (char) => char.toUpperCase());
+};
+
 const ensureFutureOrNow = (value: string) => {
   if (!value) return '';
   const parsed = new Date(value);
@@ -74,6 +109,12 @@ export default function SaaSCustomers() {
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<any>(null);
+  const [deletePreviewData, setDeletePreviewData] = useState<Record<string, number> | null>(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [deletePreviewError, setDeletePreviewError] = useState('');
+  const [deleteLogs, setDeleteLogs] = useState<string[]>([]);
+  const [deleteSuccessMessage, setDeleteSuccessMessage] = useState('');
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
   const [subdomainError, setSubdomainError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [newCustomer, setNewCustomer] = useState({
@@ -378,8 +419,8 @@ export default function SaaSCustomers() {
   });
 
   const deleteCustomerMutation = useMutation({
-    mutationFn: async (customerId: number) => {
-      const response = await saasApiRequest('DELETE', `/api/saas/customers/${customerId}`);
+    mutationFn: async (organizationId: number) => {
+      const response = await saasApiRequest('DELETE', `/api/saas/organizations/${organizationId}`);
       return response.json();
     },
     onSuccess: () => {
@@ -397,6 +438,89 @@ export default function SaaSCustomers() {
       });
     },
   });
+
+  const resetDeleteState = () => {
+    setDeletePreviewData(null);
+    setDeletePreviewError('');
+    setDeleteSuccessMessage('');
+    setDeleteErrorMessage('');
+    setDeleteLogs([]);
+    setDeletePreviewLoading(false);
+  };
+
+  const fetchDeletePreview = async (organizationId: number) => {
+    setDeletePreviewLoading(true);
+    setDeletePreviewError('');
+    setDeleteLogs([`Fetching delete preview for organization ${organizationId}...`]);
+
+    try {
+      const response = await saasApiRequest('GET', `/api/saas/organizations/${organizationId}/delete-preview`);
+      const preview = (await response.json()) as Record<string, number>;
+      setDeletePreviewData(preview);
+
+      const totalRows = Object.values(preview || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const tableCount = Object.keys(preview || {}).length;
+      setDeleteLogs((prev) => [
+        ...prev,
+        `Preview ready: ${totalRows} rows tracked across ${tableCount} tables.`,
+      ]);
+    } catch (error: any) {
+      const message = error?.message || 'Unable to load delete preview';
+      setDeletePreviewError(message);
+      setDeleteLogs((prev) => [...prev, `Preview failed: ${message}`]);
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  };
+
+  const handlePrepareDelete = (customer: any) => {
+    setCustomerToDelete(customer);
+    setIsDeleteDialogOpen(true);
+    resetDeleteState();
+    if (customer?.id) {
+      void fetchDeletePreview(customer.id);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!customerToDelete) return;
+    setDeleteErrorMessage('');
+    setDeleteSuccessMessage('');
+    setDeleteLogs((prev) => [
+      ...prev,
+      `Confirmed deletion for "${customerToDelete.name || 'organization'}".`,
+      'Sending delete request to remove all linked tables...',
+    ]);
+
+    deleteCustomerMutation.mutate(customerToDelete.id, {
+      onSuccess: (data: { deletedCounts?: Record<string, number> }) => {
+        const counts = data?.deletedCounts || {};
+        const summaryLines = Object.entries(counts).map(([key, value]) => `• ${formatDeleteTableLabel(key)}: ${value}`);
+        const summaryHeader = summaryLines.length
+          ? 'Deleted counts (final snapshot):'
+          : 'No tracked rows were deleted.';
+        setDeleteSuccessMessage('All related table rows have been permanently deleted.');
+        setDeleteLogs((prev) => [
+          ...prev,
+          'Deletion completed successfully.',
+          summaryHeader,
+          ...summaryLines,
+        ]);
+        setDeleteErrorMessage('');
+      },
+      onError: (error: any) => {
+        const message = error?.message || 'Failed to delete customer';
+        setDeleteLogs((prev) => [...prev, `Deletion failed: ${message}`]);
+        setDeleteErrorMessage(message);
+      },
+    });
+  };
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteDialogOpen(false);
+    setCustomerToDelete(null);
+    resetDeleteState();
+  };
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -1188,8 +1312,7 @@ export default function SaaSCustomers() {
                           size="sm"
                           onClick={() => {
                             console.log('🗑️ DELETE button clicked for customer:', customer.id, customer.name);
-                            setCustomerToDelete(customer);
-                            setIsDeleteDialogOpen(true);
+                            handlePrepareDelete(customer);
                           }}
                           title="Delete customer"
                           className={isPopupOpen ? 'opacity-0 pointer-events-none' : ''}
@@ -1671,41 +1794,91 @@ export default function SaaSCustomers() {
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="z-[9999]">
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseDeleteModal();
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl space-y-4 z-[9999]">
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogTitle>Delete Organization & Related Data</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-center text-gray-700">
-              Are you sure you want to delete <strong>{customerToDelete?.name}</strong>? This cannot be undone.
+          <div className="space-y-4">
+            <p className="text-center text-sm text-gray-600">
+              This action will purge every linked row for{' '}
+              <strong>{customerToDelete?.name || 'the selected organization'}</strong>. Are you sure you want to delete every table row?
             </p>
+
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Preview</p>
+              {deletePreviewLoading ? (
+                <p className="mt-2 text-xs text-gray-500">Loading related table counts...</p>
+              ) : deletePreviewError ? (
+                <p className="mt-2 text-xs text-red-600">{deletePreviewError}</p>
+              ) : deletePreviewData ? (
+                <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
+                  {Object.entries(deletePreviewData).map(([key, count]) => (
+                    <div key={key} className="flex justify-between text-xs font-semibold text-gray-800">
+                      <span>{formatDeleteTableLabel(key)}</span>
+                      <span>{count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-gray-500">No preview data available.</p>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-900/5 p-3">
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>Deletion log</span>
+                {deleteCustomerMutation.isPending && <span className="text-emerald-600">Running...</span>}
+              </div>
+              <ul className="mt-2 max-h-48 overflow-y-auto space-y-1 text-xs font-mono text-slate-700">
+                {deleteLogs.length === 0 ? (
+                  <li className="text-xs text-slate-500">No activity yet.</li>
+                ) : (
+                  deleteLogs.map((log, index) => (
+                    <li key={`${log}-${index}`}>{log}</li>
+                  ))
+                )}
+              </ul>
+            </div>
+
+            {deleteErrorMessage && <p className="text-sm text-red-600">{deleteErrorMessage}</p>}
+            {deleteSuccessMessage && <p className="text-sm text-emerald-600">{deleteSuccessMessage}</p>}
           </div>
-      <div className="flex justify-center gap-3">
-        <Button 
-          onClick={() => {
-            setIsDeleteDialogOpen(false);
-            setCustomerToDelete(null);
-          }}
-          variant="outline"
-        >
-          Cancel
-        </Button>
-        <Button 
-          onClick={() => {
-            console.log('🗑️ User confirmed deletion, calling API...');
-            deleteCustomerMutation.mutate(customerToDelete.id);
-            setIsDeleteDialogOpen(false);
-            setCustomerToDelete(null);
-          }}
-          variant="destructive"
-          disabled={deleteCustomerMutation.isPending}
-        >
-          {deleteCustomerMutation.isPending ? 'Deleting...' : 'OK'}
-        </Button>
-      </div>
-    </DialogContent>
-  </Dialog>
+
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={handleCloseDeleteModal}
+              disabled={deleteCustomerMutation.isPending}
+            >
+              {deleteSuccessMessage ? 'Close' : 'Cancel'}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={
+                deleteCustomerMutation.isPending ||
+                deletePreviewLoading ||
+                Boolean(deletePreviewError) ||
+                Boolean(deleteSuccessMessage)
+              }
+            >
+              {deleteCustomerMutation.isPending
+                ? 'Deleting...'
+                : deleteSuccessMessage
+                ? 'Deleted'
+                : 'Delete Everything'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
   <Dialog
     open={showUpdateSuccessModal}
     onOpenChange={(open) => {

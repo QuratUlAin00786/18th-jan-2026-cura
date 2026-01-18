@@ -505,11 +505,10 @@ type FieldPermission = {
 };
 
 const MODULE_KEYS = [
-  'dashboard', 'patients', 'appointments', 'medicalRecords', 'prescriptions', 'billing', 
-  'analytics', 'userManagement', 'shiftManagement', 'settings', 'aiInsights', 'messaging', 
-  'telemedicine', 'labResults', 'medicalImaging', 'forms', 'integrations',
-  'automation', 'patientPortal', 'populationHealth', 'voiceDocumentation',
-  'inventory', 'gdprCompliance', 'subscription'
+  'dashboard', 'patients', 'appointments', 'prescriptions', 'labResults', 'medicalImaging',
+  'forms', 'messaging', 'analytics', 'clinicalDecision', 'symptomChecker', 'telemedicine',
+  'voiceDocumentation', 'financialIntelligence', 'billing', 'quickbooks', 'inventory',
+  'userManagement', 'shiftManagement', 'settings', 'subscription', 'userManual'
 ] as const;
 
 const FIELD_KEYS = [
@@ -547,13 +546,11 @@ const MODULE_PERMISSIONS_LIST = [
   { key: 'billing', name: 'Billing', description: 'Process payments and invoicing' },
   { key: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks accounting integration' },
   { key: 'inventory', name: 'Inventory', description: 'Manage medical inventory' },
-  { key: 'medicalRecords', name: 'Medical Records', description: 'Create and view medical records' },
-  { key: 'integrations', name: 'Integrations', description: 'Connect external services' },
-  { key: 'gdprCompliance', name: 'GDPR Compliance', description: 'Data privacy and compliance' },
   { key: 'userManagement', name: 'User Management', description: 'Manage system users and roles' },
   { key: 'shiftManagement', name: 'Shift Management', description: 'Manage staff shifts and schedules' },
   { key: 'settings', name: 'Settings', description: 'Configure system settings' },
-  { key: 'subscription', name: 'Subscription', description: 'Manage subscription and packages' }
+  { key: 'subscription', name: 'Subscription / Packages', description: 'Manage subscription and packages' },
+  { key: 'userManual', name: 'User Manual', description: 'Access help documentation and guides' },
 ] as const;
 
 const MODULE_ACTIONS = ['view', 'create', 'edit', 'delete'] as const;
@@ -4965,6 +4962,14 @@ export default function UserManagement() {
                           {/* Module Permissions */}
                           {MODULE_PERMISSIONS_LIST.map((module) => {
                             const currentPerms = (roleForm.watch(`permissions.modules.${module.key}`) as ModulePermission | undefined) ?? createEmptyModulePermission();
+                            
+                            if (
+                              editingRole &&
+                              module.key === "userManagement" &&
+                              editingRole.name?.toLowerCase() !== "administrator"
+                            ) {
+                              return null;
+                            }
                             
                             return (
                               <div key={module.key} className="grid grid-cols-5 gap-2 items-center py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0">

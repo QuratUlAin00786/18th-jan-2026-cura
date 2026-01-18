@@ -1105,26 +1105,8 @@ export default function ImagingPage() {
   const fetchPatients = async () => {
     try {
       setPatientsLoading(true);
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {
-        "X-Tenant-Subdomain": getActiveSubdomain(),
-      };
-
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const response = await fetch("/api/patients", {
-        headers,
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
+      const response = await apiRequest("GET", "/api/patients");
       const data = await response.json();
-      // Remove duplicates based on patient ID
       const uniquePatients = data
         ? data.filter(
             (patient: any, index: number, self: any[]) =>
@@ -2487,11 +2469,11 @@ export default function ImagingPage() {
                   </Button>
                 </div>
 
-                <div className="">
+                <div className="flex flex-1 justify-end">
                   {user?.role !== "patient" && activeTab === 'order-study' && canCreate('medical_imaging') && (
                     <Button
                       onClick={() => setShowUploadDialog(true)}
-                      className="bg-medical-blue hover:bg-blue-700 text-white ml-auto"
+                      className="bg-medical-blue hover:bg-blue-700 text-white"
                       data-testid="button-order-study"
                     >
                       <Share className="h-4 w-4 mr-2" />
@@ -2506,8 +2488,9 @@ export default function ImagingPage() {
           {/* Imaging Studies List */}
           <div className="space-y-4">
             {viewMode === "list" ? (
-              /* List View - Table Format */
-              <Card>
+              filteredStudies.length > 0 && (
+                /* List View - Table Format */
+                <Card>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -2519,6 +2502,11 @@ export default function ImagingPage() {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Patient Name
                           </th>
+                          {activeTab === "order-study" && (
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              Order Date
+                            </th>
+                          )}
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Study Type
                           </th>
@@ -2534,21 +2522,27 @@ export default function ImagingPage() {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             File Name
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            File Size
-                          </th>
+                          {activeTab !== "order-study" && (
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              File Size
+                            </th>
+                          )}
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Radiologist
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Scheduled
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Performed
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Created
-                          </th>
+                          {activeTab !== "order-study" && (
+                            <>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Scheduled
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Performed
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Created
+                              </th>
+                            </>
+                          )}
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Priority
                           </th>
@@ -2578,6 +2572,13 @@ export default function ImagingPage() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                               {study.patientName}
                             </td>
+                            {activeTab === "order-study" && (
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {study.orderedAt
+                                  ? format(new Date(study.orderedAt), "MMM dd, yyyy")
+                                  : "N/A"}
+                              </td>
+                            )}
                             <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                               {study.studyType || "N/A"}
                             </td>
@@ -2596,21 +2597,33 @@ export default function ImagingPage() {
                             <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                               {study.fileName || "N/A"}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {study.fileSize ? `${(study.fileSize / 1024).toFixed(2)} KB` : "N/A"}
-                            </td>
+                            {activeTab !== "order-study" && (
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {study.fileSize ? `${(study.fileSize / 1024).toFixed(2)} KB` : "N/A"}
+                              </td>
+                            )}
                             <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                               {study.radiologist || "N/A"}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {study.scheduledAt ? format(new Date(study.scheduledAt), "MMM dd, yyyy") : "N/A"}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {study.performedAt ? format(new Date(study.performedAt), "MMM dd, yyyy") : "N/A"}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {study.createdAt ? format(new Date(study.createdAt), "MMM dd, yyyy") : "N/A"}
-                            </td>
+                            {activeTab !== "order-study" && (
+                              <>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                  {study.scheduledAt
+                                    ? format(new Date(study.scheduledAt), "MMM dd, yyyy")
+                                    : "N/A"}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                  {study.performedAt
+                                    ? format(new Date(study.performedAt), "MMM dd, yyyy")
+                                    : "N/A"}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                  {study.createdAt
+                                    ? format(new Date(study.createdAt), "MMM dd, yyyy")
+                                    : "N/A"}
+                                </td>
+                              </>
+                            )}
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                               <Badge
                                 variant={study.priority === "stat" || study.priority === "urgent" ? "destructive" : "secondary"}
@@ -2681,17 +2694,6 @@ export default function ImagingPage() {
                                 </div>
                               )}
                             </td>
-                            {activeTab === "order-study" && (
-                              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={study.orderStudyReadyToGenerate || false}
-                                  readOnly
-                                  className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                                  data-testid={`checkbox-order-ready-${study.id}`}
-                                />
-                              </td>
-                            )}
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                               <div className="flex items-center gap-2">
                                 {user?.role !== 'patient' && (
@@ -2764,15 +2766,29 @@ export default function ImagingPage() {
                                     )}
                                   </>
                                 )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDownloadStudy(study.id)}
-                                  className="h-8 w-8 p-0"
-                                  data-testid={`button-download-${study.id}`}
-                                >
-                                  <Download className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                                </Button>
+                                {activeTab !== "order-study" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDownloadStudy(study.id)}
+                                    className="h-8 w-8 p-0"
+                                    data-testid={`button-download-${study.id}`}
+                                  >
+                                    <Download className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                  </Button>
+                                )}
+                                {activeTab === "order-study" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleGenerateImagePrescription(study.id)}
+                                    className="h-8 w-8 p-0"
+                                    data-testid={`button-image-prescription-${study.id}`}
+                                    title="Generate Image Prescription"
+                                  >
+                                    <Save className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -2782,6 +2798,7 @@ export default function ImagingPage() {
                   </div>
                 </CardContent>
               </Card>
+              )
             ) : (
               filteredStudies.map((study: any) => (
               <Card
@@ -6355,15 +6372,12 @@ export default function ImagingPage() {
                 <SelectTrigger id="payment-method">
                   <SelectValue placeholder="Select payment method" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Cash">Cash</SelectItem>
-                  <SelectItem value="Debit Card">Debit Card</SelectItem>
-                  <SelectItem value="Credit Card">Credit Card</SelectItem>
-                  <SelectItem value="Insurance">Insurance</SelectItem>
-                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="Check">Check</SelectItem>
-                  <SelectItem value="Online Payment">Online Payment</SelectItem>
-                </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="Debit Card">Debit Card</SelectItem>
+                    <SelectItem value="Credit Card">Credit Card</SelectItem>
+                    <SelectItem value="Insurance">Insurance</SelectItem>
+                  </SelectContent>
               </Select>
               {invoicePaymentMethodError && (
                 <p className="text-sm text-red-600 mt-1">{invoicePaymentMethodError}</p>
@@ -6531,12 +6545,12 @@ export default function ImagingPage() {
 
       {/* Summary Dialog */}
       <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl h-[750px]">
           <DialogHeader>
             <DialogTitle>Summary</DialogTitle>
           </DialogHeader>
           {summaryData && (
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            <div className="space-y-4 max-h-[700px] h-[700px] overflow-y-auto pr-2">
               <div className="border rounded-lg p-4">
                 <h5 className="font-semibold mb-3">Imaging Details</h5>
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -6630,57 +6644,107 @@ export default function ImagingPage() {
                   Back
                 </Button>
                 <Button
-                  onClick={async () => {
-                    try {
-                      const paymentMethod = summaryData.invoice.paymentMethod;
-                      const imageId = summaryData.uploadResult?.images?.[0]?.imageId || summaryData.invoice.serviceCode;
-                      
-                      const invoiceData = {
-                        patientId: summaryData.invoice.patient,
-                        serviceDate: summaryData.invoice.serviceDate,
-                        invoiceDate: summaryData.invoice.invoiceDate,
-                        dueDate: summaryData.invoice.dueDate,
-                        totalAmount: summaryData.invoice.totalAmount.toString(),
-                        firstServiceCode: summaryData.invoice.serviceCode,
-                        firstServiceDesc: summaryData.invoice.serviceDesc,
-                        firstServiceQty: summaryData.invoice.serviceQty,
-                        firstServiceAmount: summaryData.invoice.serviceAmount,
-                        insuranceProvider: summaryData.invoice.insuranceProvider,
-                        nhsNumber: summaryData.invoice.nhsNumber || '',
-                        notes: summaryData.invoice.notes || '',
-                        serviceId: imageId,
-                        serviceType: 'medical_images',
-                        paymentMethod: paymentMethod,
-                      };
+                    onClick={async () => {
+                      try {
+                        const paymentMethod = summaryData.invoice.paymentMethod;
+                        const imageId = summaryData.uploadResult?.images?.[0]?.imageId || summaryData.invoice.serviceCode;
+                        const quantity = Math.max(
+                          parseInt(summaryData.invoice.serviceQty ?? '1', 10) || 1,
+                          1,
+                        );
+                        const parsedServiceAmount = parseFloat(summaryData.invoice.serviceAmount) || 0;
+                        const parsedTotalAmount = parseFloat(summaryData.invoice.totalAmount) || 0;
+                        const lineItemTotal =
+                          parsedTotalAmount > 0 ? parsedTotalAmount : parsedServiceAmount * quantity;
+                        const unitPrice =
+                          parsedServiceAmount > 0
+                            ? parsedServiceAmount
+                            : lineItemTotal / quantity;
 
-                      // Create invoice
-                      const invoiceResponse = await apiRequest("POST", "/api/billing/invoices", invoiceData);
-                      const createdInvoice = await invoiceResponse.json();
+                        const lineItems = [
+                          {
+                            code: summaryData.invoice.serviceCode?.trim() || 'IMG-001',
+                            description:
+                              summaryData.invoice.serviceDesc?.trim() || 'Medical Imaging Service',
+                            quantity,
+                            unitPrice,
+                            total: lineItemTotal,
+                            serviceType: 'imaging',
+                            ...(imageId ? { serviceId: imageId } : {}),
+                          },
+                        ];
+
+                        const invoiceData = {
+                          patientId: summaryData.invoice.patient,
+                          serviceDate: summaryData.invoice.serviceDate,
+                          invoiceDate: summaryData.invoice.invoiceDate,
+                          dueDate: summaryData.invoice.dueDate,
+                          totalAmount: lineItemTotal.toFixed(2),
+                          firstServiceCode: summaryData.invoice.serviceCode,
+                          firstServiceDesc: summaryData.invoice.serviceDesc,
+                          firstServiceQty: summaryData.invoice.serviceQty,
+                          firstServiceAmount: summaryData.invoice.serviceAmount,
+                          insuranceProvider: summaryData.invoice.insuranceProvider,
+                          nhsNumber: summaryData.invoice.nhsNumber || '',
+                          notes: summaryData.invoice.notes || '',
+                          serviceId: imageId,
+                          serviceType: 'medical_images',
+                          paymentMethod: paymentMethod,
+                          lineItems,
+                          serviceIds: imageId ? [imageId] : undefined,
+                        };
+
+                        // Create invoice
+                        const invoiceResponse = await apiRequest("POST", "/api/billing/invoices", invoiceData);
+                        const invoicePayload = await invoiceResponse.json();
+
+                        if (!invoiceResponse.ok) {
+                          throw new Error(invoicePayload?.error || 'Invoice creation failed');
+                        }
+
+                        const createdInvoice = invoicePayload.invoice || invoicePayload;
+                        const parsedInvoiceTotal = parseFloat(createdInvoice.totalAmount);
+                        const invoiceTotal = !Number.isNaN(parsedInvoiceTotal) && parsedInvoiceTotal > 0 ? parsedInvoiceTotal : lineItemTotal;
 
                       // Handle different payment methods
                       if (paymentMethod === 'Cash') {
-                        // Create payment record for cash
-                        const paymentData = {
-                          organizationId: createdInvoice.organizationId,
-                          invoiceId: createdInvoice.id,
-                          patientId: summaryData.invoice.patient,
+                        const parsedInvoiceId = Number(createdInvoice.id);
+                        const organizationCandidate = Number(
+                          createdInvoice.organizationId ??
+                            createdInvoice.orgId ??
+                            createdInvoice.organization?.id
+                        );
+                        const orgIdForPayload = Number.isFinite(organizationCandidate) && organizationCandidate > 0
+                          ? organizationCandidate
+                          : undefined;
+                        const paymentAmount = Number(invoiceTotal) || lineItemTotal;
+
+                        const paymentData: any = {
+                          invoiceId: Number.isFinite(parsedInvoiceId) ? parsedInvoiceId : createdInvoice.id,
+                          patientId: createdInvoice.patientId || summaryData.invoice.patient,
                           transactionId: `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                          amount: summaryData.invoice.totalAmount,
+                          amount: paymentAmount,
                           currency: 'GBP',
-                          paymentMethod: 'Cash',
+                          paymentMethod: 'cash',
                           paymentProvider: 'cash',
                           paymentStatus: 'completed',
                           paymentDate: new Date().toISOString(),
                           reference: `CASH-${Date.now().toString().slice(-8)}`,
-                          notes: 'Cash payment for imaging services',
+                          metadata: {
+                            notes: 'Cash payment for imaging services',
+                          },
                         };
+
+                        if (orgIdForPayload) {
+                          paymentData.organizationId = orgIdForPayload;
+                        }
 
                         await apiRequest("POST", "/api/billing/payments", paymentData);
 
                         // Update invoice status to paid
                         await apiRequest("PATCH", `/api/billing/invoices/${createdInvoice.id}`, {
                           status: 'paid',
-                          paidAmount: summaryData.invoice.totalAmount.toString(),
+                          paidAmount: paymentAmount.toString(),
                         });
                       } else if (paymentMethod === 'Insurance') {
                         // Automatically submit insurance claim
@@ -6715,7 +6779,7 @@ export default function ImagingPage() {
                       setPaymentSuccessData({
                         invoiceId: createdInvoice.invoiceNumber,
                         patientName: createdInvoice.patientName,
-                        amount: summaryData.invoice.totalAmount,
+                        amount: invoiceTotal,
                       });
                       setShowPaymentSuccessDialog(true);
 
@@ -6736,9 +6800,14 @@ export default function ImagingPage() {
                       // Refresh the medical images list
                       refetchImages();
                     } catch (error) {
+                      console.error("Payment flow error:", error);
+                      const message =
+                        error instanceof Error
+                          ? error.message
+                          : "Failed to process payment";
                       toast({
                         title: "Error",
-                        description: "Failed to process payment",
+                        description: message,
                         variant: "destructive",
                       });
                     }

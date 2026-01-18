@@ -81,8 +81,8 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
     }
 
     if (!subdomain) {
-      subdomain = "demo";
-      console.log(`[TENANT-MIDDLEWARE] Defaulting subdomain to demo (no header/query/referrer)`);
+      subdomain = "cura";
+      console.log(`[TENANT-MIDDLEWARE] Defaulting subdomain to cura (no header/query/referrer)`);
     } else {
       console.log(`[TENANT-MIDDLEWARE] Detected subdomain: ${subdomain} from header/query/referrer`);
     }
@@ -120,9 +120,9 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
     if (!organization) {
       organization = {
         id: 1,
-        name: "Halo Healthcare",
-        email: "admin@demo.com",
-        subdomain: "demo",
+        name: "Cura Healthcare",
+        email: "admin@cura.global",
+        subdomain: "cura",
         region: "UK",
         brandName: "Cura",
         settings: {},

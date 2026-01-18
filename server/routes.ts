@@ -6090,232 +6090,221 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   // Function to get default permissions based on role
+  type ModulePermission = {
+    view: boolean;
+    create: boolean;
+    edit: boolean;
+    delete: boolean;
+  };
+
   function getDefaultPermissionsByRole(role: string) {
     const basePermissions = {
       modules: {},
       fields: {}
     };
 
-    switch (role) {
-      case "admin":
-        return {
-          modules: {
-            patients: { view: true, create: true, edit: true, delete: true },
-            appointments: { view: true, create: true, edit: true, delete: true },
-            medicalRecords: { view: true, create: true, edit: true, delete: true },
-            prescriptions: { view: true, create: true, edit: true, delete: true },
-            billing: { view: true, create: true, edit: true, delete: true },
-            analytics: { view: true, create: true, edit: true, delete: true },
-            userManagement: { view: true, create: true, edit: true, delete: true },
-            settings: { view: true, create: true, edit: true, delete: true },
-            aiInsights: { view: true, create: true, edit: true, delete: true },
-            messaging: { view: true, create: true, edit: true, delete: true },
-            telemedicine: { view: true, create: true, edit: true, delete: true },
-            populationHealth: { view: true, create: true, edit: true, delete: true },
-            clinicalDecision: { view: true, create: true, edit: true, delete: true },
-            labResults: { view: true, create: true, edit: true, delete: true },
-            medicalImaging: { view: true, create: true, edit: true, delete: true },
-            voiceDocumentation: { view: true, create: true, edit: true, delete: true },
-            forms: { view: true, create: true, edit: true, delete: true },
-            integrations: { view: true, create: true, edit: true, delete: true },
-            automation: { view: true, create: true, edit: true, delete: true },
-            mobileHealth: { view: true, create: true, edit: true, delete: true }
-          },
-          fields: {
-            patientSensitiveInfo: true,
-            financialData: true,
-            medicalHistory: true,
-            prescriptionDetails: true,
-            labResults: true,
-            imagingResults: true,
-            billingInformation: true,
-            insuranceDetails: true
-          }
-        };
+    const dashboardModules:
+      Record<string, ModulePermission> = {
+      dashboard: { view: true, create: true, edit: true, delete: true },
+      patients: { view: true, create: true, edit: true, delete: true },
+      appointments: { view: true, create: true, edit: true, delete: true },
+      prescriptions: { view: true, create: true, edit: true, delete: true },
+      labResults: { view: true, create: true, edit: true, delete: true },
+      medicalImaging: { view: true, create: true, edit: true, delete: true },
+      forms: { view: true, create: true, edit: true, delete: true },
+      messaging: { view: true, create: true, edit: true, delete: true },
+      analytics: { view: true, create: true, edit: true, delete: true },
+      clinicalDecision: { view: true, create: true, edit: true, delete: true },
+      symptomChecker: { view: true, create: true, edit: true, delete: true },
+      telemedicine: { view: true, create: true, edit: true, delete: true },
+      voiceDocumentation: { view: true, create: true, edit: true, delete: true },
+      financialIntelligence: { view: true, create: true, edit: true, delete: true },
+      billing: { view: true, create: true, edit: true, delete: true },
+      quickbooks: { view: true, create: true, edit: true, delete: true },
+      inventory: { view: true, create: true, edit: true, delete: true },
+      userManagement: { view: true, create: true, edit: true, delete: true },
+      shiftManagement: { view: true, create: true, edit: true, delete: true },
+      subscription: { view: true, create: true, edit: true, delete: true },
+      settings: { view: true, create: true, edit: true, delete: true },
+      userManual: { view: true, create: true, edit: true, delete: true }
+    };
 
-      case "doctor":
-        return {
-          modules: {
-            patients: { view: true, create: true, edit: true, delete: false },
-            appointments: { view: true, create: true, edit: true, delete: true },
-            medicalRecords: { view: true, create: true, edit: true, delete: false },
-            prescriptions: { view: true, create: true, edit: true, delete: true },
-            billing: { view: true, create: false, edit: false, delete: false },
-            analytics: { view: true, create: false, edit: false, delete: false },
-            userManagement: { view: false, create: false, edit: false, delete: false },
-            settings: { view: false, create: false, edit: false, delete: false },
-            aiInsights: { view: true, create: true, edit: true, delete: false },
-            messaging: { view: true, create: true, edit: true, delete: false },
-            telemedicine: { view: true, create: true, edit: true, delete: false },
-            populationHealth: { view: true, create: false, edit: false, delete: false },
-            clinicalDecision: { view: true, create: true, edit: true, delete: false },
-            labResults: { view: true, create: true, edit: true, delete: false },
-            medicalImaging: { view: true, create: true, edit: true, delete: false },
-            voiceDocumentation: { view: true, create: true, edit: true, delete: true },
-            forms: { view: true, create: true, edit: true, delete: false },
-            integrations: { view: false, create: false, edit: false, delete: false },
-            automation: { view: true, create: false, edit: false, delete: false },
-            mobileHealth: { view: true, create: false, edit: false, delete: false }
-          },
-          fields: {
-            patientSensitiveInfo: true,
-            financialData: false,
-            medicalHistory: true,
-            prescriptionDetails: true,
-            labResults: true,
-            imagingResults: true,
-            billingInformation: false,
-            insuranceDetails: false
-          }
-        };
+    const defaultFields = {
+      patientSensitiveInfo: true,
+      financialData: true,
+      medicalHistory: true,
+      prescriptionDetails: true,
+      labResults: true,
+      imagingResults: true,
+      billingInformation: true,
+      insuranceDetails: true
+    };
 
-      case "nurse":
-        return {
-          modules: {
-            patients: { view: true, create: true, edit: true, delete: false },
-            appointments: { view: true, create: true, edit: true, delete: false },
-            medicalRecords: { view: true, create: true, edit: true, delete: false },
-            prescriptions: { view: true, create: false, edit: false, delete: false },
-            billing: { view: false, create: false, edit: false, delete: false },
-            analytics: { view: false, create: false, edit: false, delete: false },
-            userManagement: { view: false, create: false, edit: false, delete: false },
-            settings: { view: false, create: false, edit: false, delete: false },
-            aiInsights: { view: true, create: false, edit: false, delete: false },
-            messaging: { view: true, create: true, edit: true, delete: false },
-            telemedicine: { view: true, create: true, edit: true, delete: false },
-            populationHealth: { view: false, create: false, edit: false, delete: false },
-            clinicalDecision: { view: true, create: false, edit: false, delete: false },
-            labResults: { view: true, create: true, edit: true, delete: false },
-            medicalImaging: { view: true, create: false, edit: false, delete: false },
-            voiceDocumentation: { view: true, create: true, edit: true, delete: true },
-            forms: { view: true, create: true, edit: true, delete: false },
-            integrations: { view: false, create: false, edit: false, delete: false },
-            automation: { view: false, create: false, edit: false, delete: false },
-            mobileHealth: { view: true, create: false, edit: false, delete: false }
-          },
-          fields: {
-            patientSensitiveInfo: true,
-            financialData: false,
-            medicalHistory: true,
-            prescriptionDetails: true,
-            labResults: true,
-            imagingResults: true,
-            billingInformation: false,
-            insuranceDetails: false
-          }
-        };
+    const rolePerms: Record<string, { modules: Record<string, ModulePermission>; fields: Record<string, boolean> }> = {
+      admin: {
+        modules: dashboardModules,
+        fields: defaultFields
+      },
+      doctor: {
+        modules: {
+          dashboard: dashboardModules.dashboard,
+          patients: dashboardModules.patients,
+          appointments: dashboardModules.appointments,
+          prescriptions: dashboardModules.prescriptions,
+          labResults: dashboardModules.labResults,
+          medicalImaging: dashboardModules.medicalImaging,
+          forms: dashboardModules.forms,
+          messaging: dashboardModules.messaging,
+          analytics: dashboardModules.analytics,
+          clinicalDecision: dashboardModules.clinicalDecision,
+          symptomChecker: dashboardModules.symptomChecker,
+          telemedicine: dashboardModules.telemedicine,
+          voiceDocumentation: dashboardModules.voiceDocumentation,
+          financialIntelligence: dashboardModules.financialIntelligence,
+          billing: { view: true, create: false, edit: false, delete: false },
+          quickbooks: { view: false, create: false, edit: false, delete: false },
+          inventory: { view: false, create: false, edit: false, delete: false },
+          userManagement: { view: false, create: false, edit: false, delete: false },
+          shiftManagement: { view: true, create: true, edit: true, delete: false },
+          subscription: { view: true, create: false, edit: false, delete: false },
+          settings: { view: false, create: false, edit: false, delete: false },
+          userManual: dashboardModules.userManual
+        },
+        fields: {
+          ...defaultFields,
+          financialData: false,
+          billingInformation: false,
+          insuranceDetails: false
+        }
+      },
+      nurse: {
+        modules: {
+          dashboard: dashboardModules.dashboard,
+          patients: dashboardModules.patients,
+          appointments: dashboardModules.appointments,
+          labResults: dashboardModules.labResults,
+          medicalImaging: dashboardModules.medicalImaging,
+          forms: dashboardModules.forms,
+          messaging: dashboardModules.messaging,
+          clinicalDecision: dashboardModules.clinicalDecision,
+          symptomChecker: dashboardModules.symptomChecker,
+          voiceDocumentation: dashboardModules.voiceDocumentation
+        },
+        fields: {
+          patientSensitiveInfo: true,
+          medicalHistory: true,
+          prescriptionDetails: true,
+          labResults: true,
+          imagingResults: true,
+          financialData: false,
+          billingInformation: false,
+          insuranceDetails: false
+        }
+      },
+      receptionist: {
+        modules: {
+          dashboard: dashboardModules.dashboard,
+          patients: dashboardModules.patients,
+          appointments: dashboardModules.appointments,
+          billing: dashboardModules.billing,
+          forms: dashboardModules.forms,
+          messaging: dashboardModules.messaging,
+          shiftManagement: dashboardModules.shiftManagement,
+          userManual: dashboardModules.userManual,
+          subscription: dashboardModules.subscription
+        },
+        fields: {
+          financialData: true,
+          billingInformation: true,
+          insuranceDetails: true,
+          patientSensitiveInfo: false,
+          medicalHistory: false,
+          prescriptionDetails: false,
+          labResults: false,
+          imagingResults: false
+        }
+      },
+      patient: {
+        modules: {
+          dashboard: dashboardModules.dashboard,
+          patients: dashboardModules.patients,
+          appointments: dashboardModules.appointments,
+          prescriptions: dashboardModules.prescriptions,
+          labResults: dashboardModules.labResults,
+          medicalImaging: dashboardModules.medicalImaging,
+          voiceDocumentation: dashboardModules.voiceDocumentation,
+          messaging: dashboardModules.messaging,
+          forms: dashboardModules.forms,
+          telemedicine: dashboardModules.telemedicine
+        },
+        fields: {
+          patientSensitiveInfo: true,
+          medicalHistory: true,
+          labResults: true,
+          imagingResults: true,
+          billingInformation: true,
+          prescriptionDetails: true,
+          financialData: false,
+          insuranceDetails: true
+        }
+      },
+      sample_taker: {
+        modules: {
+          dashboard: dashboardModules.dashboard,
+          patients: dashboardModules.patients,
+          appointments: dashboardModules.appointments,
+          labResults: dashboardModules.labResults
+        },
+        fields: {
+          labResults: true,
+          patientSensitiveInfo: false,
+          medicalHistory: false,
+          billingInformation: false,
+          financialData: false,
+          imagingResults: false,
+          insuranceDetails: false,
+          prescriptionDetails: false
+        }
+      },
+      pharmacist: {
+        modules: {
+          dashboard: dashboardModules.dashboard,
+          patients: dashboardModules.patients,
+          prescriptions: dashboardModules.prescriptions,
+          billing: dashboardModules.billing,
+          messaging: dashboardModules.messaging,
+          inventory: dashboardModules.inventory
+        },
+        fields: {
+          medicalHistory: true,
+          prescriptionDetails: true,
+          patientSensitiveInfo: true,
+          labResults: false,
+          imagingResults: false,
+          billingInformation: true,
+          financialData: false,
+          insuranceDetails: false
+        }
+      },
+      lab_technician: {
+        modules: {
+          dashboard: dashboardModules.dashboard,
+          labResults: dashboardModules.labResults
+        },
+        fields: {
+          labResults: true,
+          patientSensitiveInfo: false,
+          medicalHistory: false,
+          billingInformation: false,
+          financialData: false,
+          imagingResults: false,
+          insuranceDetails: false,
+          prescriptionDetails: false
+        }
+      }
+    };
 
-      case "receptionist":
-        return {
-          modules: {
-            patients: { view: true, create: true, edit: true, delete: false },
-            appointments: { view: true, create: true, edit: true, delete: false },
-            medicalRecords: { view: false, create: false, edit: false, delete: false },
-            prescriptions: { view: false, create: false, edit: false, delete: false },
-            billing: { view: true, create: true, edit: true, delete: false },
-            analytics: { view: false, create: false, edit: false, delete: false },
-            userManagement: { view: false, create: false, edit: false, delete: false },
-            settings: { view: false, create: false, edit: false, delete: false },
-            aiInsights: { view: false, create: false, edit: false, delete: false },
-            messaging: { view: true, create: true, edit: false, delete: false },
-            telemedicine: { view: false, create: false, edit: false, delete: false },
-            populationHealth: { view: false, create: false, edit: false, delete: false },
-            clinicalDecision: { view: false, create: false, edit: false, delete: false },
-            labResults: { view: false, create: false, edit: false, delete: false },
-            medicalImaging: { view: false, create: false, edit: false, delete: false },
-            voiceDocumentation: { view: false, create: false, edit: false, delete: false },
-            forms: { view: true, create: true, edit: true, delete: false },
-            integrations: { view: false, create: false, edit: false, delete: false },
-            automation: { view: false, create: false, edit: false, delete: false },
-            mobileHealth: { view: false, create: false, edit: false, delete: false }
-          },
-          fields: {
-            patientSensitiveInfo: false,
-            financialData: true,
-            medicalHistory: false,
-            prescriptionDetails: false,
-            labResults: false,
-            imagingResults: false,
-            billingInformation: true,
-            insuranceDetails: true
-          }
-        };
-
-      case "patient":
-        return {
-          modules: {
-            patients: { view: true, create: false, edit: true, delete: false },
-            appointments: { view: true, create: true, edit: true, delete: false },
-            medicalRecords: { view: true, create: false, edit: false, delete: false },
-            prescriptions: { view: true, create: false, edit: false, delete: false },
-            billing: { view: true, create: false, edit: false, delete: false },
-            analytics: { view: false, create: false, edit: false, delete: false },
-            userManagement: { view: false, create: false, edit: false, delete: false },
-            settings: { view: false, create: false, edit: false, delete: false },
-            aiInsights: { view: false, create: false, edit: false, delete: false },
-            messaging: { view: true, create: true, edit: false, delete: false },
-            telemedicine: { view: true, create: false, edit: false, delete: false },
-            populationHealth: { view: false, create: false, edit: false, delete: false },
-            clinicalDecision: { view: false, create: false, edit: false, delete: false },
-            labResults: { view: true, create: false, edit: false, delete: false },
-            medicalImaging: { view: true, create: false, edit: false, delete: false },
-            voiceDocumentation: { view: true, create: true, edit: true, delete: true },
-            forms: { view: true, create: true, edit: true, delete: false },
-            integrations: { view: false, create: false, edit: false, delete: false },
-            automation: { view: false, create: false, edit: false, delete: false },
-            mobileHealth: { view: true, create: false, edit: false, delete: false }
-          },
-          fields: {
-            patientSensitiveInfo: true,
-            financialData: false,
-            medicalHistory: true,
-            prescriptionDetails: true,
-            labResults: true,
-            imagingResults: true,
-            billingInformation: true,
-            insuranceDetails: true
-          }
-        };
-
-      case "sample_taker":
-        return {
-          modules: {
-            patients: { view: true, create: false, edit: false, delete: false },
-            appointments: { view: true, create: false, edit: false, delete: false },
-            medicalRecords: { view: false, create: false, edit: false, delete: false },
-            prescriptions: { view: false, create: false, edit: false, delete: false },
-            billing: { view: false, create: false, edit: false, delete: false },
-            analytics: { view: false, create: false, edit: false, delete: false },
-            userManagement: { view: false, create: false, edit: false, delete: false },
-            settings: { view: false, create: false, edit: false, delete: false },
-            aiInsights: { view: false, create: false, edit: false, delete: false },
-            messaging: { view: false, create: false, edit: false, delete: false },
-            telemedicine: { view: false, create: false, edit: false, delete: false },
-            populationHealth: { view: false, create: false, edit: false, delete: false },
-            clinicalDecision: { view: false, create: false, edit: false, delete: false },
-            labResults: { view: true, create: true, edit: true, delete: false },
-            medicalImaging: { view: false, create: false, edit: false, delete: false },
-            voiceDocumentation: { view: false, create: false, edit: false, delete: false },
-            forms: { view: false, create: false, edit: false, delete: false },
-            integrations: { view: false, create: false, edit: false, delete: false },
-            automation: { view: false, create: false, edit: false, delete: false },
-            mobileHealth: { view: false, create: false, edit: false, delete: false }
-          },
-          fields: {
-            patientSensitiveInfo: false,
-            financialData: false,
-            medicalHistory: false,
-            prescriptionDetails: false,
-            labResults: true,
-            imagingResults: false,
-            billingInformation: false,
-            insuranceDetails: false
-          }
-        };
-
-      default:
-        return basePermissions;
-    }
+    return rolePerms[role] || basePermissions;
   }
 
   app.get("/api/users/check-subscription-limit", authMiddleware, async (req: TenantRequest, res) => {
@@ -6958,11 +6947,10 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   });
 
   const MODULE_KEYS = [
-    "dashboard", "patients", "appointments", "medicalRecords", "prescriptions", "billing",
-    "analytics", "userManagement", "shiftManagement", "settings", "aiInsights", "messaging",
-    "telemedicine", "labResults", "medicalImaging", "forms", "integrations",
-    "automation", "patientPortal", "populationHealth", "voiceDocumentation",
-    "inventory", "gdprCompliance", "subscription"
+    "dashboard", "patients", "appointments", "prescriptions", "labResults", "medicalImaging",
+    "forms", "messaging", "analytics", "aiInsights", "clinicalDecision", "symptomChecker",
+    "telemedicine", "voiceDocumentation", "financialIntelligence", "billing", "quickbooks", "inventory",
+    "userManagement", "shiftManagement", "subscription", "settings", "userManual"
   ] as const;
 
   const FIELD_KEYS = [
@@ -7004,19 +6992,15 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   };
 
   const normalizePermissionEntry = (entry: any, keys: readonly string[]) => {
-    const result: Record<string, any> = {};
+    const result: Record<string, ModulePermission> = {};
     keys.forEach((key) => {
       const value = parseEntryValue(entry?.[key]);
-      if (value === null) {
-        result[key] = null;
-      } else {
-        result[key] = {
-          view: Boolean(value?.view),
-          create: Boolean(value?.create),
-          edit: Boolean(value?.edit),
-          delete: Boolean(value?.delete),
-        };
-      }
+      result[key] = {
+        view: Boolean(value?.view),
+        create: Boolean(value?.create),
+        edit: Boolean(value?.edit),
+        delete: Boolean(value?.delete),
+      };
     });
     return result;
   };
@@ -20637,48 +20621,71 @@ This treatment plan should be reviewed and adjusted based on individual patient 
 
   app.post("/api/billing/invoices", requireRole(["admin", "doctor", "nurse", "receptionist"]), async (req: TenantRequest, res) => {
     try {
+      const lineItemSchema = z.object({
+        code: z.string().min(1),
+        description: z.string().min(1),
+        quantity: z.number().int().min(1),
+        unitPrice: z.number().gt(0),
+        total: z.number().gt(0),
+        serviceType: z.enum(["appointments", "labResults", "imaging", "other"]),
+        serviceId: z.union([z.string(), z.number()]).optional()
+      });
+
       const invoiceData = z.object({
         patientId: z.string().min(1, "Patient is required"),
         serviceDate: z.string().min(1, "Service date is required"),
-        invoiceDate: z.string().min(1, "Invoice date is required"), 
+        invoiceDate: z.string().min(1, "Invoice date is required"),
         dueDate: z.string().min(1, "Due date is required"),
-        totalAmount: z.string().min(1, "Total amount is required").refine(val => {
+        totalAmount: z.string().min(1, "Total amount is required").refine((val) => {
           const num = parseFloat(val);
           return !isNaN(num) && num > 0;
         }, "Total amount must be a valid number greater than 0"),
-        firstServiceCode: z.string().min(1, "Service code is required"),
-        firstServiceDesc: z.string().min(1, "Service description is required"),
-        firstServiceQty: z.string().min(1, "Service quantity is required").refine(val => {
-          const num = parseInt(val);
-          return !isNaN(num) && num > 0;
-        }, "Service quantity must be a valid number greater than 0"),
-        firstServiceAmount: z.string().min(1, "Service amount is required").refine(val => {
-          const num = parseFloat(val);
-          return !isNaN(num) && num > 0;
-        }, "Service amount must be a valid number greater than 0"),
+        lineItems: z.array(lineItemSchema).min(1, "At least one service item must be provided"),
+        serviceType: z.string().min(1),
+        serviceIds: z.array(z.string()).optional(),
         insuranceProvider: z.string().optional(),
         nhsNumber: z.string().optional(),
         notes: z.string().optional(),
-        serviceId: z.union([z.number(), z.string()]).optional(),
-        serviceType: z.string().optional(),
         paymentMethod: z.string().optional()
       }).parse(req.body);
 
-      // Get patient name for the invoice
       const patient = await storage.getPatientByPatientId(invoiceData.patientId, req.tenant!.id);
       if (!patient) {
         return res.status(400).json({ error: "Patient not found" });
       }
 
-      // Generate unique invoice number
+      const computedTotal = invoiceData.lineItems.reduce((acc, item) => acc + item.total, 0);
+      const requestedTotal = parseFloat(invoiceData.totalAmount);
+      if (Math.abs(computedTotal - requestedTotal) > 0.1) {
+        return res.status(400).json({ error: "Line item totals must match the invoice total" });
+      }
+
+      for (const item of invoiceData.lineItems) {
+        if (!item.serviceId) continue;
+        const id = Number(item.serviceId);
+        if (Number.isNaN(id)) continue;
+        if (item.serviceType === "appointments") {
+          const appointment = await storage.getAppointment(id, req.tenant!.id);
+          if (!appointment || appointment.patientId !== patient.id) {
+            return res.status(400).json({ error: "Selected appointment does not belong to the patient" });
+          }
+        } else if (item.serviceType === "labResults") {
+          const labResult = await storage.getLabResult(id, req.tenant!.id);
+          if (!labResult || labResult.patientId !== patient.id) {
+            return res.status(400).json({ error: "Selected lab result does not belong to the patient" });
+          }
+        } else if (item.serviceType === "imaging") {
+          const imagingRecord = await storage.getMedicalImage(id, req.tenant!.id);
+          if (!imagingRecord || imagingRecord.patientId !== patient.id) {
+            return res.status(400).json({ error: "Selected imaging study does not belong to the patient" });
+          }
+        }
+      }
+
       const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-
-      // Detect invoice type based on insurance provider
-      const invoiceType = invoiceData.insuranceProvider && invoiceData.insuranceProvider !== '' && invoiceData.insuranceProvider !== 'none' 
-        ? 'insurance_claim' 
+      const invoiceType = invoiceData.insuranceProvider && invoiceData.insuranceProvider !== '' && invoiceData.insuranceProvider !== 'none'
+        ? 'insurance_claim'
         : 'payment';
-
-      // Generate insurance claim data if invoice type is insurance_claim
       const insuranceData = invoiceType === 'insurance_claim' ? {
         provider: invoiceData.insuranceProvider || 'NHS',
         claimNumber: `CLM${Date.now().toString().slice(-6)}`,
@@ -20686,46 +20693,62 @@ This treatment plan should be reviewed and adjusted based on individual patient 
         paidAmount: 0
       } : null;
 
-      // Prepare invoice for database (with enforced created_by)
-      const totalAmt = parseFloat(invoiceData.totalAmount);
+      const serviceIds = invoiceData.serviceIds || invoiceData.lineItems.map((item) => item.serviceId).filter(Boolean).map(String);
+
       const invoiceToCreate = enforceCreatedBy(req, {
         organizationId: req.tenant!.id,
         patientId: invoiceData.patientId,
         patientName: `${patient.firstName} ${patient.lastName}`,
         nhsNumber: invoiceData.nhsNumber ? invoiceData.nhsNumber.replace(/\s+/g, '') : (patient.nhsNumber ? patient.nhsNumber.replace(/\s+/g, '') : null),
-        invoiceNumber: invoiceNumber,
+        invoiceNumber,
         invoiceDate: new Date(invoiceData.invoiceDate),
         dueDate: new Date(invoiceData.dueDate),
         dateOfService: new Date(invoiceData.serviceDate),
         status: "draft" as const,
-        invoiceType: invoiceType,
+        invoiceType,
         paymentMethod: invoiceData.paymentMethod || null,
-        subtotal: totalAmt,
+        subtotal: computedTotal,
         tax: 0,
         discount: 0,
-        totalAmount: totalAmt,
+        totalAmount: computedTotal,
         paidAmount: 0,
-        items: [
-          {
-            code: invoiceData.firstServiceCode,
-            description: invoiceData.firstServiceDesc,
-            quantity: parseInt(invoiceData.firstServiceQty) || 1,
-            unitPrice: parseFloat(invoiceData.firstServiceAmount),
-            total: parseFloat(invoiceData.firstServiceAmount)
-          }
-        ],
+        items: invoiceData.lineItems.map((item) => ({
+          code: item.code,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.total,
+          serviceType: item.serviceType,
+          serviceId: item.serviceId
+        })),
         notes: invoiceData.notes || null,
         insurance: insuranceData,
         payments: [],
-        serviceId: invoiceData.serviceId || null,
-        serviceType: invoiceData.serviceType || null
+        serviceId: serviceIds[0] || null,
+        serviceType: invoiceData.serviceType
       });
 
-      console.log("📝 Creating patient invoice in database:", invoiceNumber);
       const createdInvoice = await storage.createPatientInvoice(invoiceToCreate);
-      console.log("✅ Patient invoice created successfully:", createdInvoice.id);
-      
-      res.status(201).json(createdInvoice);
+
+      const structuredInvoice = {
+        patient: {
+          patientId: patient.patientId,
+          patientName: `${patient.firstName} ${patient.lastName}`,
+          nhsNumber: patient.nhsNumber || invoiceData.nhsNumber || null
+        },
+        serviceType: invoiceData.serviceType,
+        selectedServiceIds: serviceIds,
+        lineItems: invoiceData.lineItems,
+        totalAmount: createdInvoice.totalAmount,
+        invoiceDate: createdInvoice.invoiceDate,
+        dueDate: createdInvoice.dueDate,
+        notes: createdInvoice.notes
+      };
+
+      res.status(201).json({
+        invoice: createdInvoice,
+        structuredInvoice
+      });
     } catch (error) {
       console.error("Invoice creation error:", error);
       res.status(500).json({ error: "Failed to create invoice" });
@@ -20793,25 +20816,59 @@ This treatment plan should be reviewed and adjusted based on individual patient 
   }, requireRole(["admin", "doctor", "nurse", "receptionist"]), async (req: TenantRequest, res) => {
     console.log("🔵 Payment endpoint handler executing - req.body:", req.body);
     try {
-      const validatedData = z.object({
-        organizationId: z.number(),
-        invoiceId: z.number(),
-        patientId: z.string(),
-        transactionId: z.string(),
-        amount: z.number(),
-        currency: z.string().default('GBP'),
-        paymentMethod: z.string(),
-        paymentProvider: z.string().optional(),
-        paymentStatus: z.string().default('completed'),
-        paymentDate: z.string(),
-        reference: z.string().optional(),
-        notes: z.string().optional(),
-      }).parse(req.body);
+      const paymentPayload: any = { ...req.body };
+      if (!paymentPayload.organizationId) {
+        paymentPayload.organizationId = req.tenant?.id ?? 1;
+        console.log("[PAYMENT] Set organizationId from tenant fallback:", paymentPayload.organizationId);
+      }
 
-      // Convert paymentDate string to Date object for Drizzle
+      if (!paymentPayload || typeof paymentPayload !== "object") {
+        console.log("[PAYMENT] Invalid payload:", paymentPayload);
+        return res.status(400).json({ error: "Invalid payment payload" });
+      }
+
+      const organizationIdValue = Number(paymentPayload.organizationId ?? req.tenant?.id ?? 1);
+      if (!Number.isFinite(organizationIdValue) || organizationIdValue <= 0) {
+        return res.status(400).json({ error: "Invalid organizationId" });
+      }
+
+      const invoiceIdValue = Number(paymentPayload.invoiceId);
+      if (!Number.isFinite(invoiceIdValue) || invoiceIdValue <= 0) {
+        return res.status(400).json({ error: "Invalid invoiceId" });
+      }
+
+      const amountValue = Number(paymentPayload.amount);
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        return res.status(400).json({ error: "Invalid payment amount" });
+      }
+
+      const requiredStringFields = [
+        "patientId",
+        "transactionId",
+        "currency",
+        "paymentMethod",
+        "paymentDate",
+      ];
+      for (const field of requiredStringFields) {
+        if (typeof paymentPayload[field] !== "string" || !paymentPayload[field].trim()) {
+          return res.status(400).json({ error: `Invalid or missing ${field}` });
+        }
+      }
+
       const paymentData = {
-        ...validatedData,
-        paymentDate: new Date(validatedData.paymentDate),
+        organizationId: organizationIdValue,
+        invoiceId: invoiceIdValue,
+        patientId: paymentPayload.patientId,
+        transactionId: paymentPayload.transactionId,
+        amount: amountValue,
+        currency: paymentPayload.currency || "GBP",
+        paymentMethod: paymentPayload.paymentMethod,
+        paymentProvider: paymentPayload.paymentProvider || null,
+        paymentStatus: paymentPayload.paymentStatus || "completed",
+        paymentDate: new Date(paymentPayload.paymentDate),
+        reference: paymentPayload.reference || null,
+        notes: paymentPayload.notes || null,
+        metadata: paymentPayload.metadata || null,
       };
 
       console.log("💰 Creating payment record:", paymentData);

@@ -2422,11 +2422,18 @@ ${
       ];
 
       details.forEach(detail => {
-        const lines = doc.splitTextToSize(detail, 100);
-        lines.forEach((line: string) => {
-          doc.text(line, leftColumnX, yPos);
-          yPos += 6;
-        });
+                        const lines = doc.splitTextToSize(detail, 100);
+                        lines.forEach((line: string, lineIndex: number) => {
+                          const isLastLine =
+                            detail === details[details.length - 1] &&
+                            lineIndex === lines.length - 1;
+                          if (yPos > 270 && !isLastLine) {
+                            doc.addPage();
+                            yPos = 20;
+                          }
+                          doc.text(line, leftColumnX, yPos);
+                          yPos += 6;
+                        });
       });
 
       const imagePath = imagePathToUse || savedAnatomicalImage || "";
@@ -5172,11 +5179,19 @@ ${
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex justify-center gap-4 pt-6 border-t">
+                <div
+                  className={`flex justify-center gap-4 pt-6 border-t ${
+                    isGeneratingPlan ? "border-transparent bg-gray-50" : "border-gray-200"
+                  }`}
+                >
                   <Button
                     onClick={generateTreatmentPlan}
                     disabled={isGeneratingPlan}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 min-w-fit"
+                    className={`px-4 py-2 min-w-fit rounded transition ${
+                      isGeneratingPlan
+                        ? "bg-gray-100 text-gray-500 border border-transparent cursor-not-allowed"
+                        : "bg-green-600 text-white border border-transparent hover:bg-green-700"
+                    }`}
                   >
                     {isGeneratingPlan ? "Generating..." : "Generate Treatment Plan"}
                   </Button>
@@ -5214,6 +5229,7 @@ ${
                 {generatedTreatmentPlan && (
                   <div className="flex justify-center pt-4">
                     <Button
+                      disabled={isViewAnalysisDownloading}
                       onClick={async () => {
                         if (isViewAnalysisDownloading) {
                           return;
@@ -5590,11 +5606,18 @@ ${
                           description: "Failed to generate PDF. Please try again.",
                           variant: "destructive"
                         });
+                      } finally {
+                        setIsViewAnalysisDownloading(false);
                       }
                     }}
-                    className="bg-purple-600 hover:bg-purple-700 px-4 py-2 min-w-fit"
-                  >
-                    View Anatomical Analysis
+                    className={`px-6 rounded transition ${
+                      isViewAnalysisDownloading
+                        ? "bg-gray-200 text-gray-500 border border-gray-300 cursor-not-allowed"
+                        : "bg-purple-600 text-white border border-transparent hover:bg-purple-700"
+                    }`}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {isViewAnalysisDownloading ? "Downloading..." : "Download Anatomical Analysis"}
                   </Button>
                 </div>
                 )}
@@ -6198,8 +6221,6 @@ ${
                           description: "Failed to generate PDF. Please try again.",
                           variant: "destructive"
                         });
-                      } finally {
-                        setIsViewAnalysisDownloading(false);
                       }
                     }}
                     disabled={isViewAnalysisDownloading}
@@ -6209,7 +6230,7 @@ ${
                         : "bg-purple-600 text-white border border-transparent hover:bg-purple-700"
                     }`}
                   >
-                    {isViewAnalysisDownloading ? "Downloading..." : "View Anatomical Analysis"}
+                    {isViewAnalysisDownloading ? "Downloading..." : "Download Anatomical Analysis"}
                   </Button>
                   <Button
                     onClick={() => setShowAnatomicalModal(false)}

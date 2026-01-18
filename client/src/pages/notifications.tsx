@@ -14,7 +14,6 @@ import {
   MessageSquare,
   X,
   Check,
-  Trash2,
   CheckCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,6 +72,8 @@ export default function NotificationsPage() {
     },
   });
 
+  const visibleNotifications = notifications.filter(n => n.status !== "dismissed");
+
   // Mark as read mutation
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: number) => {
@@ -96,6 +97,7 @@ export default function NotificationsPage() {
         title: "Notification dismissed",
         description: "The notification has been dismissed successfully.",
       });
+      setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
     },
   });
 
@@ -111,21 +113,6 @@ export default function NotificationsPage() {
       toast({
         title: "All notifications marked as read",
         description: "All notifications have been marked as read.",
-      });
-    },
-  });
-
-  // Delete notification mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (notificationId: number) => {
-      return apiRequest("DELETE", `/api/notifications/${notificationId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
-      toast({
-        title: "Notification deleted",
-        description: "The notification has been deleted successfully.",
       });
     },
   });
@@ -214,11 +201,6 @@ export default function NotificationsPage() {
     dismissMutation.mutate(notificationId);
   };
 
-  const handleDelete = (e: React.MouseEvent, notificationId: number) => {
-    e.stopPropagation();
-    deleteMutation.mutate(notificationId);
-  };
-
   const toggleSelectNotification = (notificationId: number) => {
     setSelectedNotifications(prev =>
       prev.includes(notificationId)
@@ -228,7 +210,7 @@ export default function NotificationsPage() {
   };
 
   const selectAll = () => {
-    const allIds = notifications.map(n => n.id);
+    const allIds = visibleNotifications.map(n => n.id);
     setSelectedNotifications(allIds);
   };
 
@@ -288,14 +270,14 @@ export default function NotificationsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-blue-800 dark:text-blue-400">
-              All Notifications ({notifications.length})
-            </CardTitle>
-            <CardDescription>
-              {notifications.length === 0 && "No notifications to display"}
+          <CardTitle className="text-blue-800 dark:text-blue-400">
+            Notifications ({visibleNotifications.length})
+          </CardTitle>
+          <CardDescription>
+            {visibleNotifications.length === 0 && "No notifications to display"}
             </CardDescription>
           </div>
-          {notifications.length > 0 && selectedNotifications.length === 0 && (
+        {visibleNotifications.length > 0 && selectedNotifications.length === 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -311,7 +293,7 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
-          ) : notifications.length === 0 ? (
+          ) : visibleNotifications.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <Bell className="h-16 w-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
               <p className="font-medium text-lg">No notifications found</p>
@@ -322,7 +304,7 @@ export default function NotificationsPage() {
           ) : (
           <ScrollArea className="max-h-[800px] h-[800px]">
               <div className="space-y-2">
-                {notifications.map((notification) => (
+                {visibleNotifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={`p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-all ${
@@ -431,15 +413,6 @@ export default function NotificationsPage() {
                         data-testid={`button-dismiss-${notification.id}`}
                       >
                         <X className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => handleDelete(e, notification.id)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-${notification.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
                     </div>
                   </div>

@@ -102,13 +102,13 @@ const ALL_NAVIGATION = [
     name: "Clinical Decision Support",
     href: "/clinical-decision-support",
     icon: Brain,
-    module: "ai_insights",
+    module: "clinical_decision_support",
   },
   {
     name: "Symptom Checker",
     href: "/symptom-checker",
     icon: Thermometer,
-    module: "ai_insights",
+    module: "symptom_checker",
   },
   {
     name: "Telemedicine",
@@ -126,14 +126,14 @@ const ALL_NAVIGATION = [
     name: "Financial Intelligence",
     href: "/financial-intelligence",
     icon: Calculator,
-    module: "billing",
+    module: "financial_intelligence",
   },
   { name: "Billing", href: "/billing", icon: PoundSterling, module: "billing" },
   {
     name: "QuickBooks",
     href: "/quickbooks",
     icon: Calculator,
-    module: "billing",
+    module: "quickbooks",
   },
   { name: "Inventory", href: "/inventory", icon: Package, module: "inventory" },
 ];
@@ -158,7 +158,7 @@ const ADMIN_NAVIGATION = [
     module: "subscription",
   },
   { name: "Settings", href: "/settings", icon: Settings, module: "settings" },
-  { name: "User Manual", href: "/user-manual", icon: BookOpen, module: "settings" },
+  { name: "User Manual", href: "/user-manual", icon: BookOpen, module: "user_manual" },
 ];
 
 export function Sidebar() {
@@ -237,11 +237,14 @@ export function Sidebar() {
   const isDoctorUser = user && isDoctorLike(user.role);
 
   const filteredAdminNavigation = ADMIN_NAVIGATION.filter((item) => {
-    if (item.module === "user_management" && isDoctorUser) {
-      return false;
+    if (item.module === "user_management") {
+      const normalizedRole = currentRole?.toLowerCase() ?? "";
+      if (normalizedRole !== "admin" && normalizedRole !== "administrator") {
+        return false;
+      }
     }
     // Admin has full access to everything
-    if (currentRole === "admin") {
+    if (currentRole === "admin" || currentRole === "administrator") {
       return true;
     }
 

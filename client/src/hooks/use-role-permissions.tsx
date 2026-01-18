@@ -99,11 +99,29 @@ export function useRolePermissions() {
       'user_management': 'userManagement',
       'shift_management': 'shiftManagement',
       'settings': 'settings',
-      'subscription': 'subscription'
+      'subscription': 'subscription',
+      'financial_intelligence': 'financialIntelligence',
+      'quickbooks': 'quickbooks',
+      'clinical_decision_support': 'clinicalDecision',
+      'symptom_checker': 'symptomChecker',
+      'user_manual': 'userManual'
     };
     
     const backendModuleName = moduleMapping[module] || module;
-    const modulePerms = rolePermissions.modules?.[backendModuleName];
+    let modulePerms = rolePermissions.modules?.[backendModuleName];
+
+    const moduleAliases: Record<string, string[]> = {
+      aiInsights: ["clinicalDecision", "symptomChecker"],
+    };
+
+    if (!modulePerms && moduleAliases[backendModuleName]) {
+      for (const alias of moduleAliases[backendModuleName]) {
+        modulePerms = rolePermissions.modules?.[alias];
+        if (modulePerms) {
+          break;
+        }
+      }
+    }
     
     if (!modulePerms) {
       // If no permissions found in database, deny access

@@ -1,6 +1,6 @@
 import { isDoctorLike } from './utils/role-utils.js';
 import { 
-  organizations, users, patients, medicalRecords, appointments, invoices, payments, aiInsights, subscriptions, patientCommunications, consultations, notifications, prescriptions, documents, medicalImages, clinicalPhotos, labResults, riskAssessments, claims, revenueRecords, insuranceVerifications, clinicalProcedures, emergencyProtocols, medicationsDatabase, roles, staffShifts, doctorDefaultShifts, gdprConsents, gdprDataRequests, gdprAuditTrail, gdprProcessingActivities, conversations as conversationsTable, messages, messageCampaigns, messageTemplates, voiceNotes, saasOwners, saasPackages, saasSubscriptions, saasPayments, saasInvoices, saasSettings, chatbotConfigs, chatbotSessions, chatbotMessages, chatbotAnalytics, musclePositions, userDocumentPreferences, letterDrafts, forecastModels, financialForecasts, quickbooksConnections, quickbooksSyncLogs, quickbooksCustomerMappings, quickbooksInvoiceMappings, quickbooksPaymentMappings, quickbooksAccountMappings, quickbooksItemMappings, quickbooksSyncConfigs, doctorsFee, labTestPricing, imagingPricing, treatments, treatmentsInfo, clinicHeaders, clinicFooters, symptomChecks,
+  organizations, users, patients, medicalRecords, appointments, invoices, payments, aiInsights, subscriptions, patientCommunications, consultations, notifications, prescriptions, documents, medicalImages, clinicalPhotos, labResults, riskAssessments, claims, revenueRecords, insuranceVerifications, clinicalProcedures, emergencyProtocols, medicationsDatabase, roles, staffShifts, doctorDefaultShifts, gdprConsents, gdprDataRequests, gdprAuditTrail, gdprProcessingActivities, conversations as conversationsTable, messages, messageCampaigns, messageTemplates, voiceNotes, saasOwners, saasPackages, saasSubscriptions, saasPayments, saasInvoices, saasSettings, chatbotConfigs, chatbotSessions, chatbotMessages, chatbotAnalytics, musclePositions, userDocumentPreferences, letterDrafts, forecastModels, financialForecasts, quickbooksConnections, quickbooksSyncLogs, quickbooksCustomerMappings, quickbooksInvoiceMappings, quickbooksPaymentMappings, quickbooksAccountMappings, quickbooksItemMappings, quickbooksSyncConfigs, doctorsFee, labTestPricing, imagingPricing, treatments, treatmentsInfo, clinicHeaders, clinicFooters, symptomChecks, forms, formSections, formFields, formShares, formShareLogs, formResponses, formResponseValues,
   type Organization, type InsertOrganization,
   type User, type InsertUser,
   type Role, type InsertRole,
@@ -68,7 +68,7 @@ import {
   type ClinicFooter, type InsertClinicFooter
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, count, not, sql, gte, lt, lte, isNotNull, isNull, or, ilike, ne } from "drizzle-orm";
+import { eq, and, desc, asc, count, not, sql, gte, lt, lte, isNotNull, isNull, or, ilike, ne, inArray } from "drizzle-orm";
 
 const GRACE_PERIOD_DAYS = 13;
 const addDays = (date: Date, days: number) => {
@@ -173,6 +173,8 @@ export interface IStorage {
   createOrganization(organization: InsertOrganization): Promise<Organization>;
   updateOrganization(id: number, updates: Partial<InsertOrganization>): Promise<Organization | undefined>;
   deleteCustomerOrganization(id: number): Promise<{ success: boolean; message: string }>;
+  getOrganizationDeletionPreview(id: number): Promise<Record<string, number>>;
+  deleteOrganizationAndData(id: number): Promise<{ success: boolean; deletedCounts: Record<string, number> }>;
 
   // Users
   getUser(id: number, organizationId: number): Promise<User | undefined>;
@@ -718,45 +720,166 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async getOrganizationDeletionPreview(id: number): Promise<Record<string, number>> {
+    const tables = [
+      { key: "formResponses", table: formResponses },
+      { key: "formShareLogs", table: formShareLogs },
+      { key: "formShares", table: formShares },
+      { key: "formFields", table: formFields },
+      { key: "formSections", table: formSections },
+      { key: "forms", table: forms },
+      { key: "treatments", table: treatments },
+      { key: "treatmentsInfo", table: treatmentsInfo },
+      { key: "users", table: users },
+      { key: "patients", table: patients },
+      { key: "appointments", table: appointments },
+      { key: "labResults", table: labResults },
+      { key: "medicalImages", table: medicalImages },
+      { key: "prescriptions", table: prescriptions },
+      { key: "notifications", table: notifications },
+      { key: "subscriptions", table: subscriptions },
+      { key: "invoices", table: invoices },
+      { key: "payments", table: payments },
+      { key: "roles", table: roles },
+      { key: "staffShifts", table: staffShifts },
+      { key: "doctorDefaultShifts", table: doctorDefaultShifts },
+      { key: "symptomChecks", table: symptomChecks },
+    ];
+
+    const counts: Record<string, number> = {};
+    for (const entry of tables) {
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(entry.table)
+        .where(eq(entry.table.organizationId, id));
+      counts[entry.key] = count || 0;
+    }
+
+    const [formResponseValuesCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(formResponseValues)
+      .innerJoin(formResponses, eq(formResponses.id, formResponseValues.responseId))
+      .where(eq(formResponses.organizationId, id));
+    counts.formResponseValues = formResponseValuesCount?.count || 0;
+
+    const [orgCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(organizations)
+      .where(eq(organizations.id, id));
+    counts.organizations = orgCount?.count || 0;
+
+    return counts;
+  }
+
+  async deleteOrganizationAndData(id: number): Promise<{ success: boolean; deletedCounts: Record<string, number> }> {
+    const tables = [
+      { key: "formResponses", table: formResponses },
+      { key: "formShareLogs", table: formShareLogs },
+      { key: "formShares", table: formShares },
+      { key: "formFields", table: formFields },
+      { key: "formSections", table: formSections },
+      { key: "forms", table: forms },
+      { key: "prescriptions", table: prescriptions },
+      { key: "labResults", table: labResults },
+      { key: "medicalImages", table: medicalImages },
+      { key: "appointments", table: appointments },
+      { key: "symptomChecks", table: symptomChecks },
+      { key: "notifications", table: notifications },
+      { key: "payments", table: payments },
+      { key: "invoices", table: invoices },
+      { key: "subscriptions", table: subscriptions },
+      { key: "staffShifts", table: staffShifts },
+      { key: "doctorDefaultShifts", table: doctorDefaultShifts },
+      { key: "roles", table: roles },
+      { key: "patients", table: patients },
+      { key: "users", table: users },
+    ];
+
+    const deletedCounts: Record<string, number> = {};
+    const result = await db.transaction(async (tx) => {
+      const userRows = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.organizationId, id));
+      const userIds = userRows.map((item) => item.id);
+      const hasUserIds = userIds.length > 0;
+
+      const deleteWithCondition = async (table: any, condition: any, key: string) => {
+        const [{ count }] = await tx
+          .select({ count: sql<number>`count(*)::int` })
+          .from(table)
+          .where(condition);
+        deletedCounts[key] = (deletedCounts[key] || 0) + (count || 0);
+        await tx.delete(table).where(condition);
+      };
+
+      const [formResponseValuesCount] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(formResponseValues)
+        .innerJoin(formResponses, eq(formResponses.id, formResponseValues.responseId))
+        .where(eq(formResponses.organizationId, id));
+
+      deletedCounts.formResponseValues = formResponseValuesCount?.count || 0;
+      if (deletedCounts.formResponseValues > 0) {
+        await tx.execute(sql`
+          DELETE FROM form_response_values
+          WHERE response_id IN (SELECT id FROM form_responses WHERE organization_id = ${id})
+        `);
+      }
+
+      await tx.execute(sql`
+        DELETE FROM form_share_logs
+        WHERE sent_by IN (SELECT id FROM users WHERE organization_id = ${id})
+      `);
+
+      const treatmentsCondition = hasUserIds
+        ? or(
+            eq(treatments.organizationId, id),
+            inArray(treatments.doctorId, userIds),
+            inArray(treatments.createdBy, userIds),
+          )
+        : eq(treatments.organizationId, id);
+
+      await deleteWithCondition(treatments, treatmentsCondition, "treatments");
+
+      const treatmentsInfoCondition = hasUserIds
+        ? or(eq(treatmentsInfo.organizationId, id), inArray(treatmentsInfo.createdBy, userIds))
+        : eq(treatmentsInfo.organizationId, id);
+
+      await deleteWithCondition(treatmentsInfo, treatmentsInfoCondition, "treatmentsInfo");
+
+      for (const entry of tables) {
+        const condition = eq(entry.table.organizationId, id);
+        await deleteWithCondition(entry.table, condition, entry.key);
+      }
+
+      const [deletedOrg] = await tx.delete(organizations).where(eq(organizations.id, id)).returning();
+      const orgDeleted = Boolean(deletedOrg);
+      deletedCounts.organizations = orgDeleted ? 1 : 0;
+      return orgDeleted;
+    });
+
+    return { success: result, deletedCounts };
+  }
+
   async deleteCustomerOrganization(id: number): Promise<{ success: boolean; message: string }> {
     try {
       console.log(`🗑️ Deleting customer organization: ${id}`);
-      
-      // Get organization info first for logging
       const org = await this.getOrganization(id);
       if (!org) {
-        return { success: false, message: 'Organization not found' };
+        return { success: false, message: "Organization not found" };
       }
-      
-      console.log(`🗑️ Deleting organization: ${org.name} (${org.subdomain})`);
-      
-      // Delete all related data for this organization
-      console.log(`🗑️ Deleting all users for organization ${id}`);
-      await db.delete(users).where(eq(users.organizationId, id));
-      
-      console.log(`🗑️ Deleting all patients for organization ${id}`);
-      await db.delete(patients).where(eq(patients.organizationId, id));
-      
-      console.log(`🗑️ Deleting all medical records for organization ${id}`);
-      await db.delete(medicalRecords).where(eq(medicalRecords.organizationId, id));
-      
-      console.log(`🗑️ Deleting all appointments for organization ${id}`);
-      await db.delete(appointments).where(eq(appointments.organizationId, id));
-      
-      console.log(`🗑️ Deleting all notifications for organization ${id}`);
-      await db.delete(notifications).where(eq(notifications.organizationId, id));
-      
-      console.log(`🗑️ Deleting all subscriptions for organization ${id}`);
-      await db.delete(subscriptions).where(eq(subscriptions.organizationId, id));
-      
-      console.log(`🗑️ Deleting organization ${id}`);
-      const result = await db.delete(organizations).where(eq(organizations.id, id));
-      
-      console.log(`🗑️ Successfully deleted organization ${org.name}`);
+
+      const { success, deletedCounts } = await this.deleteOrganizationAndData(id);
+      if (!success) {
+        return { success: false, message: `Failed to delete organization "${org.name}"` };
+      }
+
+      console.log(`🗑️ Deleted counts:`, deletedCounts);
       return { success: true, message: `Organization "${org.name}" deleted successfully` };
     } catch (error) {
       console.error(`🗑️ Error deleting organization ${id}:`, error);
-      return { success: false, message: 'Failed to delete organization' };
+      return { success: false, message: "Failed to delete organization" };
     }
   }
 
@@ -5671,7 +5794,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Check if admin email/username already exists
-      const existingUser = await db.select().from(users).where(eq(users.username, customerData.adminEmail)).limit(1);
+      const existingUser = await db.select().from(users).where(eq(users.email, customerData.adminEmail)).limit(1);
       if (existingUser.length > 0) {
         console.log('❌ [CUSTOMER-CREATE] Admin email already exists:', customerData.adminEmail);
         throw new Error(`Admin email '${customerData.adminEmail}' is already in use. Please use a different email address.`);
@@ -6350,8 +6473,21 @@ export class DatabaseStorage implements IStorage {
       return await db
         .select()
         .from(saasPackages)
-        .orderBy(asc(saasPackages.displayOrder))
-        .orderBy(desc(saasPackages.createdAt));
+        .orderBy(
+          asc(
+            sql`CASE WHEN ${saasPackages.displayOrder} IS NULL OR ${saasPackages.displayOrder} = 0 THEN 1 ELSE 0 END`,
+          ),
+        )
+        .orderBy(
+          asc(
+            sql`CASE WHEN ${saasPackages.displayOrder} IS NULL OR ${saasPackages.displayOrder} = 0 THEN NULL ELSE ${saasPackages.displayOrder} END`,
+          ),
+        )
+        .orderBy(
+          desc(
+            sql`CASE WHEN ${saasPackages.displayOrder} IS NULL OR ${saasPackages.displayOrder} = 0 THEN ${saasPackages.createdAt} ELSE NULL END`,
+          ),
+        );
     } catch (error: any) {
       const message = (error?.message || "").toLowerCase();
       if (message.includes("display_order") || message.includes("display order")) {
@@ -6368,10 +6504,13 @@ export class DatabaseStorage implements IStorage {
           createdAt: saasPackages.createdAt,
           updatedAt: saasPackages.updatedAt,
         };
-        const packages = await db.select(selection).from(saasPackages).orderBy(desc(saasPackages.createdAt));
+        const packages = await db
+          .select(selection)
+          .from(saasPackages)
+          .orderBy(desc(saasPackages.createdAt));
         return packages.map((pkg) => ({
           ...pkg,
-          displayOrder: 0,
+          displayOrder: pkg.displayOrder ?? 0,
         }));
       }
       throw error;

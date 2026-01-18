@@ -1654,6 +1654,45 @@ The Cura EMR Team`,
     },
   );
 
+  app.get(
+    "/api/saas/organizations/:id/delete-preview",
+    verifySaaSToken,
+    async (req: Request, res: Response) => {
+      try {
+        const organizationId = parseInt(req.params.id);
+        if (Number.isNaN(organizationId)) {
+          return res.status(400).json({ message: "Invalid organization ID" });
+        }
+        const preview = await storage.getOrganizationDeletionPreview(organizationId);
+        res.json(preview);
+      } catch (error) {
+        console.error("Error fetching organization delete preview:", error);
+        res.status(500).json({ message: "Failed to fetch delete preview" });
+      }
+    },
+  );
+
+  app.delete(
+    "/api/saas/organizations/:id",
+    verifySaaSToken,
+    async (req: Request, res: Response) => {
+      try {
+        const organizationId = parseInt(req.params.id);
+        if (Number.isNaN(organizationId)) {
+          return res.status(400).json({ message: "Invalid organization ID" });
+        }
+        const { success, deletedCounts } = await storage.deleteOrganizationAndData(organizationId);
+        if (!success) {
+          return res.status(500).json({ message: "Failed to delete organization data" });
+        }
+        res.json({ success: true, deletedCounts });
+      } catch (error) {
+        console.error("Error deleting organization:", error);
+        res.status(500).json({ message: "Failed to delete organization" });
+      }
+    },
+  );
+
   // Get website-visible packages (public endpoint for pricing section)
   app.get("/api/website/packages", async (req: Request, res: Response) => {
     try {

@@ -333,6 +333,24 @@ export default function AppointmentCalendar({ onNewAppointment }: { onNewAppoint
     return `${hour24.toString().padStart(2, '0')}:${minutes}`;
   };
 
+const timeSlotToMinutes = (timeSlot: string): number => {
+  const [time, period] = timeSlot.split(" ");
+  const [hours, minutes] = time.split(":").map((part) => parseInt(part, 10));
+  let normalizedHour = hours;
+  if (period === "PM" && hours !== 12) normalizedHour += 12;
+  if (period === "AM" && hours === 12) normalizedHour = 0;
+  return normalizedHour * 60 + (Number.isNaN(minutes) ? 0 : minutes);
+};
+
+const parseShiftTimeToMinutes = (time?: string): number => {
+  if (!time) return 0;
+  const cleaned = time.split(".")[0];
+  const parts = cleaned.split(":").map((part) => parseInt(part, 10));
+  if (parts.length < 2 || parts.some((num) => Number.isNaN(num))) return 0;
+  const [hours, minutes] = parts;
+  return hours * 60 + minutes;
+};
+
   // Check if time slot is within staff's working hours/shift
   const isTimeSlotInShift = (timeSlot: string, date: Date): boolean => {
     if (!selectedProviderId || !usersData) return true;
@@ -340,6 +358,7 @@ export default function AppointmentCalendar({ onNewAppointment }: { onNewAppoint
     const provider = usersData.find((user: any) => user.id.toString() === selectedProviderId);
     if (!provider) return true;
     
+    const slotMinutes = timeSlotToMinutes(timeSlot);
     // TIER 1: Check for custom shifts for this date and provider
     if (shiftsData && Array.isArray(shiftsData)) {
       const selectedDateStr = format(date, 'yyyy-MM-dd');
@@ -352,11 +371,9 @@ export default function AppointmentCalendar({ onNewAppointment }: { onNewAppoint
       
       if (providerShift) {
         // Use the custom shift times
-        const slotTime = timeSlotTo24Hour(timeSlot);
-        const startTime = providerShift.startTime;
-        const endTime = providerShift.endTime;
-        
-        return slotTime >= startTime && slotTime <= endTime;
+        const startMinutes = parseShiftTimeToMinutes(providerShift.startTime);
+        const endMinutes = parseShiftTimeToMinutes(providerShift.endTime);
+        return slotMinutes >= startMinutes && slotMinutes + 15 <= endMinutes;
       }
     }
     
@@ -372,11 +389,10 @@ export default function AppointmentCalendar({ onNewAppointment }: { onNewAppoint
         
         // Check if this day is a working day
         if (workingDays.includes(dayOfWeek)) {
-          const slotTime = timeSlotTo24Hour(timeSlot);
-          const startTime = defaultShift.startTime || '00:00';
-          const endTime = defaultShift.endTime || '23:59';
-          
-          return slotTime >= startTime && slotTime <= endTime;
+        const startMinutes = parseShiftTimeToMinutes(defaultShift.startTime || '00:00');
+        const endMinutes = parseShiftTimeToMinutes(defaultShift.endTime || '23:59');
+        
+        return slotMinutes >= startMinutes && slotMinutes + 15 <= endMinutes;
         }
         
         return false; // Not a working day
@@ -391,11 +407,53 @@ export default function AppointmentCalendar({ onNewAppointment }: { onNewAppoint
     if (!provider.workingDays.includes(dayName)) return false;
     
     // Check if time slot is within working hours
-    const slotTime = timeSlotTo24Hour(timeSlot);
-    const startTime = provider.workingHours.start || '00:00';
-    const endTime = provider.workingHours.end || '23:59';
+    const startMinutes = parseShiftTimeToMinutes(provider.workingHours.start || '00:00');
+    const endMinutes = parseShiftTimeToMinutes(provider.workingHours.end || '23:59');
     
-    return slotTime >= startTime && slotTime <= endTime;
+    return slotMinutes >= startMinutes && slotMinutes + 15 <= endMinutes;
+  };
+
+  const getProviderShiftBounds = (date: Date) => {
+    if (!selectedProviderId || !usersData) return null;
+    const selectedDateStr = format(date, "yyyy-MM-dd");
+
+    if (shiftsData && Array.isArray(shiftsData)) {
+      const customShift = shiftsData.find((shift: any) => {
+        if (shift.staffId?.toString() !== selectedProviderId) return false;
+        const shiftDateStr =
+          shift.date instanceof Date ? format(shift.date, "yyyy-MM-dd") : shift.date?.substring(0, 10);
+        return shiftDateStr === selectedDateStr;
+      });
+      if (customShift) {
+        return {
+          start: parseShiftTimeToMinutes(customShift.startTime),
+          end: parseShiftTimeToMinutes(customShift.endTime),
+        };
+      }
+    }
+
+    if (defaultShiftsData && defaultShiftsData.length > 0) {
+      const defaultShift = defaultShiftsData.find((ds: any) => ds.userId.toString() === selectedProviderId);
+      if (defaultShift) {
+        const dayName = format(date, "EEEE");
+        if ((defaultShift.workingDays || []).includes(dayName)) {
+          return {
+            start: parseShiftTimeToMinutes(defaultShift.startTime || "00:00"),
+            end: parseShiftTimeToMinutes(defaultShift.endTime || "23:59"),
+          };
+        }
+      }
+    }
+
+    const provider = usersData.find((user: any) => user.id.toString() === selectedProviderId);
+    if (provider?.workingHours) {
+      return {
+        start: parseShiftTimeToMinutes(provider.workingHours.start || "00:00"),
+        end: parseShiftTimeToMinutes(provider.workingHours.end || "23:59"),
+      };
+    }
+
+    return null;
   };
 
   // Function to check if a time slot is available and within shift
@@ -525,9 +583,15 @@ export default function AppointmentCalendar({ onNewAppointment }: { onNewAppoint
     }
     
     const availableMinutes = availableSlots * 15;
+    const shiftBounds = getProviderShiftBounds(date);
+    const slotStartMinutes = timeSlotToMinutes(startTimeSlot);
+    const remainingMinutes = shiftBounds
+      ? Math.max(0, shiftBounds.end - slotStartMinutes)
+      : availableMinutes;
+
     return {
       available: availableSlots === slotsNeeded,
-      availableMinutes: availableMinutes
+      availableMinutes: Math.min(availableMinutes, remainingMinutes),
     };
   };
 
@@ -3458,6 +3522,16 @@ Medical License: [License Number]
                   const newScheduledAt = `${selectedDate}T${hour24.toString().padStart(2, "0")}:${minutes}:00`;
                   
                   // Check for conflicts in the database before creating
+                  const appointmentDateForCheck = newAppointmentDate!;
+                  const durationCheck = checkConsecutiveSlotsAvailable(appointmentDateForCheck, newSelectedTimeSlot, selectedDuration);
+                  if (!durationCheck.available) {
+                    setValidationErrorMessage(
+                      `Only ${durationCheck.availableMinutes} minutes are available at ${newSelectedTimeSlot}. Please choose a ${durationCheck.availableMinutes} minute duration.`
+                    );
+                    setShowValidationError(true);
+                    return;
+                  }
+
                   const conflictResult = await checkAppointmentConflicts(
                     parseInt(newAppointmentData.patientId),
                     parseInt(selectedProviderId),

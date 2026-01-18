@@ -448,7 +448,7 @@ const predefinedEducationLevels = [
   "Other (specify)",
 ];
 
-const predefinedOccupations = [
+const occupationBaseList = [
   // Healthcare & Medical
   "Physician / Doctor",
   "Nurse (RN / LPN)",
@@ -553,6 +553,10 @@ const predefinedOccupations = [
   "Retired",
   "Self-Employed",
 ];
+
+const predefinedOccupations = Array.from(
+  new Set([...occupationBaseList, "Housewife", "Other"]),
+).sort((a, b) => a.localeCompare(b));
 
 const predefinedMaritalStatuses = [
   // Standard Options

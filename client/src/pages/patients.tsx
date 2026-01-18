@@ -318,9 +318,12 @@ export default function Patients() {
         <div className="flex-1 overflow-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                onClick={() => setLocation('/patients')}
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                const subdomain = getTenantSubdomain();
+                setLocation(`/${subdomain}/patients`);
+              }}
                 className="flex items-center gap-2"
               >
                 <ArrowLeft className="h-4 w-4" />

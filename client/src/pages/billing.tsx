@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -89,6 +89,20 @@ interface Invoice {
   }>;
 }
 
+type ServiceType = "appointments" | "labResults" | "imaging" | "other";
+
+interface LineItem {
+  id: string;
+  serviceType: ServiceType;
+  serviceId?: string;
+  code: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  readOnlyPrice?: boolean;
+}
+
 const DOCTOR_SERVICE_OPTIONS = [
   { value: "General Consultation", description: "Standard visit for diagnosis or follow-up" },
   { value: "Specialist Consultation", description: "Visit with a specialist doctor (e.g., Cardiologist)" },
@@ -159,6 +173,18 @@ const IMAGING_TYPE_OPTIONS = [
   "Angiography",
   "Interventional Radiology (IR)"
 ];
+
+const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  appointments: "Appointments",
+  labResults: "Lab Results",
+  imaging: "Imaging",
+  other: "Other"
+};
+
+async function fetchResource<T = any>(path: string): Promise<T> {
+  const response = await apiRequest("GET", path);
+  return response.json();
+}
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-GB', {
@@ -3206,10 +3232,44 @@ export default function BillingPage() {
     }
   };
 
+  const handleUpdateLineItemQuantity = (lineId: string, value: string) => {
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== lineId) return item;
+        const quantity = Math.max(1, Number(value) || 1);
+        return {
+          ...item,
+          quantity,
+          total: Number((item.unitPrice * quantity).toFixed(2))
+        };
+      })
+    );
+  };
+
+  const handleUpdateLineItemUnitPrice = (lineId: string, value: string) => {
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== lineId) return item;
+        if (item.readOnlyPrice) return item;
+        const unitPrice = Math.max(0, Number(value) || 0);
+        const quantity = Math.max(1, item.quantity);
+        return {
+          ...item,
+          unitPrice,
+          total: Number((unitPrice * quantity).toFixed(2))
+        };
+      })
+    );
+  };
+
+  const handleRemoveLineItem = (lineId: string) => {
+    setLineItems((prev) => prev.filter((item) => item.id !== lineId));
+  };
+
   const handleCreateInvoice = async () => {
     setIsCreatingInvoice(true);
     setPatientError("");
-    setServiceError("");
+    setServiceSelectionError("");
     setTotalAmountError("");
     setNhsNumberError("");
 
@@ -3219,23 +3279,20 @@ export default function BillingPage() {
       return;
     }
 
-    if (!firstServiceCode.trim() || !firstServiceDesc.trim()) {
-      setServiceError('Please enter both a service code and description');
+    if (lineItems.length === 0) {
+      setServiceSelectionError('Add at least one service or procedure to invoice.');
       setIsCreatingInvoice(false);
       return;
     }
 
-    const qty = parseInt(firstServiceQty || '0', 10);
-    const unitPrice = parseFloat(firstServiceAmount || '0');
-    const total = parseFloat(totalAmount || '0');
-
-    if (isNaN(qty) || qty <= 0 || isNaN(unitPrice) || unitPrice <= 0) {
-      setServiceError('Quantity and amount must be numbers greater than zero');
+    if (!serviceDate || !invoiceDate || !dueDate) {
+      setServiceSelectionError('Service date, invoice date, and due date are required.');
       setIsCreatingInvoice(false);
       return;
     }
 
-    if (isNaN(total) || total <= 0) {
+    const total = lineItems.reduce((acc, item) => acc + item.total, 0);
+    if (total <= 0) {
       setTotalAmountError('Total amount must be greater than zero');
       setIsCreatingInvoice(false);
       return;
@@ -3281,32 +3338,37 @@ export default function BillingPage() {
     }
 
     const insuranceSummary = insuranceSummaryParts.join(' | ');
+    const uniqueServiceTypes = Array.from(new Set(lineItems.map((item) => item.serviceType)));
+    const serviceTypeField = uniqueServiceTypes.length === 1 ? uniqueServiceTypes[0] : "multiple";
+    const serviceIds = lineItems.map((item) => item.serviceId).filter(Boolean) as string[];
 
-    const invoicePayload = {
+    const payload = {
       patientId: selectedPatient,
       serviceDate,
       invoiceDate,
       dueDate,
-      totalAmount: totalAmount || '0',
-      paidAmount: invoicePaymentMethod === "Cash" ? totalAmount || '0' : '0',
-      status: invoiceStatus,
+      totalAmount: total.toFixed(2),
       paymentMethod: invoicePaymentMethod,
       insuranceProvider: resolvedInsuranceProvider,
       nhsNumber: nhsNumber.trim() || undefined,
-      firstServiceCode,
-      firstServiceDesc,
-      firstServiceQty,
-      firstServiceAmount,
-      notes: [notes, insuranceSummary].filter(Boolean).join(' | ')
+      notes: [notes, insuranceSummary].filter(Boolean).join(' | '),
+      lineItems: lineItems.map((item) => ({
+        code: item.code,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: Number(item.total.toFixed(2)),
+        serviceType: item.serviceType,
+        serviceId: item.serviceId
+      })),
+      serviceType: serviceTypeField,
+      serviceIds
     };
 
     try {
-      const response = await apiRequest('POST', '/api/billing/invoices', invoicePayload);
+      const response = await apiRequest('POST', '/api/billing/invoices', payload);
       const responseBody = await response.json();
-      if (!response.ok) {
-        throw new Error(responseBody?.error || 'Failed to create invoice');
-      }
-      const createdInvoice = responseBody as Invoice;
+      const createdInvoice = responseBody.invoice || responseBody;
 
       setShowNewInvoice(false);
       setSelectedPatient("");
@@ -3316,11 +3378,19 @@ export default function BillingPage() {
       setTotalAmount("");
       setInsuranceProvider("");
       setNhsNumber("");
-      setFirstServiceCode("");
-      setFirstServiceDesc("");
-      setFirstServiceQty("");
-      setFirstServiceAmount("");
       setNotes("");
+      setLineItems([]);
+      setSelectedServiceType("appointments");
+      setSelectedAppointmentId("");
+      setSelectedLabResultId("");
+      setSelectedImagingId("");
+      setManualServiceEntry({
+        code: "",
+        description: "",
+        quantity: "1",
+        unitPrice: ""
+      });
+      setServiceSelectionError("");
       setInvoicePaymentMethod("Online Payment");
       setInvoiceStatus("pending");
       setInsuranceDetails({
@@ -3971,16 +4041,23 @@ export default function BillingPage() {
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [totalAmount, setTotalAmount] = useState("");
   const [insuranceProvider, setInsuranceProvider] = useState("");
-  const [firstServiceCode, setFirstServiceCode] = useState("");
-  const [firstServiceDesc, setFirstServiceDesc] = useState("");
-  const [firstServiceQty, setFirstServiceQty] = useState("");
-  const [firstServiceAmount, setFirstServiceAmount] = useState("");
   const [notes, setNotes] = useState("");
+  const [selectedServiceType, setSelectedServiceType] = useState<ServiceType>("appointments");
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
+  const [selectedLabResultId, setSelectedLabResultId] = useState("");
+  const [selectedImagingId, setSelectedImagingId] = useState("");
+  const [manualServiceEntry, setManualServiceEntry] = useState({
+    code: "",
+    description: "",
+    quantity: "1",
+    unitPrice: ""
+  });
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [serviceSelectionError, setServiceSelectionError] = useState("");
   const [nhsNumber, setNhsNumber] = useState("");
   
   // Validation error states
   const [patientError, setPatientError] = useState("");
-  const [serviceError, setServiceError] = useState("");
   const [totalAmountError, setTotalAmountError] = useState("");
   const [nhsNumberError, setNhsNumberError] = useState("");
 
@@ -4158,9 +4235,295 @@ export default function BillingPage() {
     }
   });
 
+  const { data: billingDoctorsFees = [] } = useQuery({
+    queryKey: ["/api/pricing/doctors-fees", "billing"],
+    queryFn: () => fetchResource("/api/pricing/doctors-fees"),
+    enabled: Boolean(user)
+  });
+  
+  const { data: labTestPricingList = [] } = useQuery({
+    queryKey: ["/api/pricing/lab-tests", "billing"],
+    queryFn: () => fetchResource("/api/pricing/lab-tests"),
+    enabled: Boolean(user)
+  });
+
+  const { data: imagingPricingList = [] } = useQuery({
+    queryKey: ["/api/pricing/imaging", "billing"],
+    queryFn: () => fetchResource("/api/pricing/imaging"),
+    enabled: Boolean(user)
+  });
+
+  const { data: treatmentsList = [] } = useQuery({
+    queryKey: ["/api/pricing/treatments", "billing"],
+    queryFn: () => fetchResource("/api/pricing/treatments"),
+    enabled: Boolean(user)
+  });
+
   // Get the current patient's patientId if user is a patient
   const currentPatient = isPatient && patients ? patients.find((p: any) => p.userId === user?.id) : null;
   const currentPatientId = currentPatient?.patientId;
+  const selectedPatientRecord = selectedPatient
+    ? patients?.find((p: any) => p.patientId === selectedPatient)
+    : null;
+
+  const { data: patientAppointments = [], isLoading: patientAppointmentsLoading } = useQuery({
+    queryKey: ["/api/appointments", selectedPatientRecord?.id],
+    queryFn: () => fetchResource(`/api/appointments?patientId=${selectedPatientRecord?.id}`),
+    enabled: Boolean(selectedPatientRecord?.id)
+  });
+
+  const { data: patientLabResults = [], isLoading: patientLabResultsLoading } = useQuery({
+    queryKey: ["/api/patients", selectedPatientRecord?.id, "lab-results"],
+    queryFn: () => fetchResource(`/api/patients/${selectedPatientRecord?.id}/lab-results`),
+    enabled: Boolean(selectedPatientRecord?.id)
+  });
+
+  const { data: patientImaging = [], isLoading: patientImagingLoading } = useQuery({
+    queryKey: ["/api/patients", selectedPatientRecord?.id, "medical-imaging"],
+    queryFn: () => fetchResource(`/api/patients/${selectedPatientRecord?.id}/medical-imaging`),
+    enabled: Boolean(selectedPatientRecord?.id)
+  });
+
+  const { data: treatmentsInfoList = [] } = useQuery({
+    queryKey: ["/api/treatments-info", "billing"],
+    queryFn: () => fetchResource("/api/treatments-info"),
+    enabled: Boolean(user)
+  });
+
+  const findDoctorFeeByDoctorId = (doctorId?: number) => {
+    if (!doctorId) return null;
+    const directMatch = billingDoctorsFees.find((fee: any) => Number(fee.doctorId) === Number(doctorId));
+    if (directMatch) return directMatch;
+    return billingDoctorsFees.find((fee: any) => !fee.doctorId);
+  };
+
+  const findLabPricingForResult = (labResult: any) => {
+    if (!labResult) return null;
+    const testId = String(labResult.testId || labResult.testType || "").toLowerCase();
+    const testName = String(labResult.testName || labResult.testType || "").toLowerCase();
+    return labTestPricingList.find((price: any) => {
+      const matchesCode = price.testCode && price.testCode.toLowerCase() === testId;
+      const matchesName = price.testName && price.testName.toLowerCase() === testName;
+      return matchesCode || matchesName;
+    }) || null;
+  };
+
+  const findImagingPricingForRecord = (record: any) => {
+    if (!record) return null;
+    const imagingType = String(record.studyType || record.imagingType || "").toLowerCase();
+    return imagingPricingList.find((price: any) => price.imagingType && price.imagingType.toLowerCase() === imagingType) || null;
+  };
+
+  const findTreatmentById = (treatmentId?: number) => {
+    if (!treatmentId) return null;
+    return treatmentsList.find((treatment: any) => Number(treatment.id) === Number(treatmentId)) || null;
+  };
+
+  const findTreatmentInfoById = (infoId?: number) => {
+    if (!infoId) return null;
+    return treatmentsInfoList.find((info: any) => Number(info.id) === Number(infoId)) || null;
+  };
+
+  const findDoctorFeeByConsultationId = (consultationId?: number) => {
+    if (!consultationId) return null;
+    return billingDoctorsFees.find((fee: any) => Number(fee.metadata?.consultationId) === Number(consultationId)) || null;
+  };
+
+  const handleAddService = useCallback(() => {
+    setServiceSelectionError("");
+
+    if (!selectedPatientRecord) {
+      setServiceSelectionError("Select a patient before adding services.");
+      return;
+    }
+
+    const baseQuantity = 1;
+    const lineId = `${selectedServiceType}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    let newItem: LineItem | null = null;
+
+    if (selectedServiceType === "appointments") {
+      const appointment = patientAppointments.find((apt: any) => String(apt.id) === selectedAppointmentId);
+      if (!appointment) {
+        setServiceSelectionError("Select a valid appointment for this patient.");
+        return;
+      }
+
+      const treatment = findTreatmentById(appointment.treatmentId);
+      const treatmentInfo = findTreatmentInfoById(appointment.treatmentId);
+      const isTreatment = Boolean(treatment && appointment.treatmentId);
+
+      if (isTreatment && treatment) {
+        const amount = Number(treatment.basePrice || 0);
+        if (amount <= 0) {
+          setServiceSelectionError("The linked treatment does not have a price configured.");
+          return;
+        }
+        newItem = {
+          id: lineId,
+          serviceType: "appointments",
+          serviceId: String(appointment.id),
+          code: treatment.metadata?.code || `T-${treatment.id}`,
+          description: treatmentInfo?.name || treatment.name || "Treatment",
+          quantity: baseQuantity,
+          unitPrice: amount,
+          total: amount * baseQuantity,
+          readOnlyPrice: true
+        };
+      } else {
+        let fee = findDoctorFeeByConsultationId(appointment.consultationId);
+        if (!fee) {
+          fee = findDoctorFeeByDoctorId(appointment.providerId);
+        }
+        const amount = Number(fee?.basePrice || 0);
+        if (!fee || amount <= 0) {
+          setServiceSelectionError("No consultation fee is configured for the attending doctor.");
+          return;
+        }
+      newItem = {
+          id: lineId,
+          serviceType: "appointments",
+          serviceId: String(appointment.id),
+        code: appointment.appointmentId || `APT-${appointment.id}`,
+        description: appointment.description || appointment.title || "Consultation",
+          quantity: baseQuantity,
+          unitPrice: amount,
+          total: amount * baseQuantity,
+          readOnlyPrice: true
+        };
+      }
+
+      setSelectedAppointmentId("");
+    } else if (selectedServiceType === "labResults") {
+      const labResult = patientLabResults.find((result: any) => String(result.id) === selectedLabResultId);
+      if (!labResult) {
+        setServiceSelectionError("Select a lab result for this patient.");
+        return;
+      }
+      const pricing = findLabPricingForResult(labResult);
+      const amount = Number(pricing?.basePrice || 0);
+      if (!pricing || amount <= 0) {
+        setServiceSelectionError("Pricing for the selected lab result is unavailable.");
+        return;
+      }
+
+      newItem = {
+        id: lineId,
+        serviceType: "labResults",
+        serviceId: String(labResult.id),
+        code: pricing.testCode || labResult.testId || "Lab",
+        description: labResult.testName || pricing.testName || "Lab Result",
+        quantity: baseQuantity,
+        unitPrice: amount,
+        total: amount * baseQuantity,
+        readOnlyPrice: true
+      };
+
+      setSelectedLabResultId("");
+    } else if (selectedServiceType === "imaging") {
+      const imagingRecord = patientImaging.find((img: any) => String(img.id) === selectedImagingId);
+      if (!imagingRecord) {
+        setServiceSelectionError("Select an imaging record for this patient.");
+        return;
+      }
+      const pricing = findImagingPricingForRecord(imagingRecord);
+      const amount = Number(pricing?.basePrice || 0);
+      if (!pricing || amount <= 0) {
+        setServiceSelectionError("Pricing for the selected imaging study is unavailable.");
+        return;
+      }
+
+      newItem = {
+        id: lineId,
+        serviceType: "imaging",
+        serviceId: String(imagingRecord.id),
+        code: pricing.imagingCode || imagingRecord.imageId || "Imaging",
+        description: imagingRecord.studyType || pricing.imagingType || "Imaging Study",
+        quantity: baseQuantity,
+        unitPrice: amount,
+        total: amount * baseQuantity,
+        readOnlyPrice: true
+      };
+
+      setSelectedImagingId("");
+    } else if (selectedServiceType === "other") {
+      const qty = parseInt(manualServiceEntry.quantity || "1", 10);
+      const price = parseFloat(manualServiceEntry.unitPrice || "0");
+      if (!manualServiceEntry.code.trim() || !manualServiceEntry.description.trim()) {
+        setServiceSelectionError("Enter both code and description for the manual service.");
+        return;
+      }
+      if (isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0) {
+        setServiceSelectionError("Quantity and unit price must be numbers greater than zero.");
+        return;
+      }
+
+      newItem = {
+        id: lineId,
+        serviceType: "other",
+        code: manualServiceEntry.code.trim(),
+        description: manualServiceEntry.description.trim(),
+        quantity: qty,
+        unitPrice: price,
+        total: qty * price,
+        readOnlyPrice: false
+      };
+
+      setManualServiceEntry({
+        code: "",
+        description: "",
+        quantity: "1",
+        unitPrice: ""
+      });
+    }
+
+    if (newItem) {
+      setLineItems((prev) => [...prev, newItem]);
+      setServiceSelectionError("");
+    }
+  }, [
+    selectedPatientRecord,
+    selectedServiceType,
+    patientAppointments,
+    patientLabResults,
+    patientImaging,
+    manualServiceEntry,
+    billingDoctorsFees,
+    treatmentsInfoList,
+    selectedLabResultId,
+    selectedImagingId,
+    selectedAppointmentId
+  ]);
+
+  useEffect(() => {
+    if (
+      selectedServiceType === "appointments" &&
+      selectedAppointmentId &&
+      !patientAppointmentsLoading
+    ) {
+      handleAddService();
+    }
+  }, [selectedAppointmentId, selectedServiceType, handleAddService, patientAppointmentsLoading]);
+
+  useEffect(() => {
+    if (
+      selectedServiceType === "labResults" &&
+      selectedLabResultId &&
+      !patientLabResultsLoading
+    ) {
+      handleAddService();
+    }
+  }, [selectedLabResultId, selectedServiceType, handleAddService, patientLabResultsLoading]);
+
+  useEffect(() => {
+    if (
+      selectedServiceType === "imaging" &&
+      selectedImagingId &&
+      !patientImagingLoading
+    ) {
+      handleAddService();
+    }
+  }, [selectedImagingId, selectedServiceType, handleAddService, patientImagingLoading]);
 
   // Fetch payments for Payment History tab
   const { data: payments = [], isLoading: paymentsLoading } = useQuery({
@@ -4216,6 +4579,28 @@ export default function BillingPage() {
       setNhsNumber("");
     }
   }, [selectedPatient, patients]);
+
+  useEffect(() => {
+    setLineItems([]);
+    setSelectedAppointmentId("");
+    setSelectedLabResultId("");
+    setSelectedImagingId("");
+    setManualServiceEntry({
+      code: "",
+      description: "",
+      quantity: "1",
+      unitPrice: ""
+    });
+    setServiceSelectionError("");
+  }, [selectedPatient]);
+
+  useEffect(() => {
+    const sum = lineItems.reduce((acc, item) => acc + item.total, 0);
+    setTotalAmount(sum > 0 ? sum.toFixed(2) : "");
+    if (sum > 0) {
+      setTotalAmountError("");
+    }
+  }, [lineItems]);
 
   useEffect(() => {
     if (invoicePaymentMethod !== "Insurance") {
@@ -7109,31 +7494,212 @@ export default function BillingPage() {
 
             <div>
               <Label>Services & Procedures</Label>
-              <div className="border rounded-md p-4 space-y-3">
-                <div className="grid grid-cols-4 gap-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-                  <span>Code</span>
-                  <span>Description</span>
-                  <span>Qty</span>
-                  <span>Amount</span>
+              <div className="border rounded-md p-4 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Service Type</Label>
+                    <Select value={selectedServiceType} onValueChange={(value) => setSelectedServiceType(value as ServiceType)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select service type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SERVICE_TYPE_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end justify-end">
+                    <Button size="sm" variant="outline" onClick={handleAddService}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Service
+                    </Button>
+                  </div>
                 </div>
-                
-                <div className="grid grid-cols-4 gap-2">
-                  <Input placeholder="Enter CPT Code" value={firstServiceCode} onChange={(e) => setFirstServiceCode(e.target.value)} />
-                  <Input placeholder="Enter Description" value={firstServiceDesc} onChange={(e) => setFirstServiceDesc(e.target.value)} />
-                  <Input placeholder="Qty" value={firstServiceQty} onChange={(e) => setFirstServiceQty(e.target.value)} />
-                  <Input placeholder="Amount" value={firstServiceAmount} onChange={(e) => setFirstServiceAmount(e.target.value)} />
+
+                {selectedServiceType === "appointments" && (
+                  <div className="space-y-2">
+                    <Label>Appointment</Label>
+                    <Select value={selectedAppointmentId} onValueChange={setSelectedAppointmentId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={patientAppointmentsLoading ? "Loading appointments..." : "Select appointment"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {patientAppointmentsLoading ? (
+                          <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        ) : patientAppointments.length > 0 ? (
+                          patientAppointments.map((appointment: any) => (
+                            <SelectItem key={appointment.id} value={String(appointment.id)}>
+                              {appointment.appointmentId || `APT-${appointment.id}`} - {appointment.title || "Consultation"} (
+                              {format(new Date(appointment.scheduledAt || appointment.createdAt || Date.now()), "dd MMM yyyy")})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>No appointments found</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedServiceType === "labResults" && (
+                  <div className="space-y-2">
+                    <Label>Lab Result</Label>
+                    <Select value={selectedLabResultId} onValueChange={setSelectedLabResultId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={patientLabResultsLoading ? "Loading lab results..." : "Select lab result"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {patientLabResultsLoading ? (
+                          <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        ) : patientLabResults.length > 0 ? (
+                          patientLabResults.map((result: any) => (
+                            <SelectItem key={result.id} value={String(result.id)}>
+                              {result.testId || `LR-${result.id}`} - {result.testName} ({result.status})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>No lab results found</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedServiceType === "imaging" && (
+                  <div className="space-y-2">
+                    <Label>Imaging Study</Label>
+                    <Select value={selectedImagingId} onValueChange={setSelectedImagingId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={patientImagingLoading ? "Loading imaging..." : "Select imaging study"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {patientImagingLoading ? (
+                          <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        ) : patientImaging.length > 0 ? (
+                          patientImaging.map((study: any) => (
+                            <SelectItem key={study.id} value={String(study.id)}>
+                              {study.studyType || "Imaging"} - {study.imageId || `IMG-${study.id}`}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>No imaging records found</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedServiceType === "other" && (
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <Label>Service Code</Label>
+                      <Input
+                        value={manualServiceEntry.code}
+                        onChange={(e) => setManualServiceEntry((prev) => ({ ...prev, code: e.target.value }))}
+                        placeholder="CPT or custom code"
+                      />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <Input
+                        value={manualServiceEntry.description}
+                        onChange={(e) => setManualServiceEntry((prev) => ({ ...prev, description: e.target.value }))}
+                        placeholder="Service description"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Quantity</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={manualServiceEntry.quantity}
+                          onChange={(e) => setManualServiceEntry((prev) => ({ ...prev, quantity: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Unit Price (£)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={manualServiceEntry.unitPrice}
+                          onChange={(e) => setManualServiceEntry((prev) => ({ ...prev, unitPrice: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  {lineItems.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-800">
+                          <tr>
+                            <th className="p-2 text-left">Code</th>
+                            <th className="p-2 text-left">Description</th>
+                            <th className="p-2 text-center">Qty</th>
+                            <th className="p-2 text-right">Unit Price</th>
+                            <th className="p-2 text-right">Total</th>
+                            <th className="p-2 text-left">Type</th>
+                            <th className="p-2 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lineItems.map((item) => (
+                            <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700">
+                              <td className="p-2 font-mono">{item.code}</td>
+                              <td className="p-2">{item.description}</td>
+                              <td className="p-2 text-center">
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={(e) => handleUpdateLineItemQuantity(item.id, e.target.value)}
+                                />
+                              </td>
+                              <td className="p-2 text-right">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  value={item.unitPrice}
+                                  readOnly={item.readOnlyPrice}
+                                  disabled={item.readOnlyPrice}
+                                  onChange={(e) => handleUpdateLineItemUnitPrice(item.id, e.target.value)}
+                                />
+                              </td>
+                              <td className="p-2 text-right font-semibold">£{item.total.toFixed(2)}</td>
+                              <td className="p-2">
+                                <Badge className="border border-dashed border-gray-300 dark:border-gray-600 text-xs">
+                                  {SERVICE_TYPE_LABELS[item.serviceType]}
+                                </Badge>
+                              </td>
+                              <td className="p-2 text-center">
+                                <Button variant="ghost" size="sm" onClick={() => handleRemoveLineItem(item.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Add at least one service or procedure to generate an invoice total.
+                    </p>
+                  )}
                 </div>
-                
-                <div className="grid grid-cols-4 gap-2">
-                  <Input placeholder="CPT Code" />
-                  <Input placeholder="Description" />
-                  <Input placeholder="1" />
-                  <Input placeholder="0.00" />
-                </div>
+
+                {serviceSelectionError && (
+                  <p className="text-sm text-red-600">{serviceSelectionError}</p>
+                )}
               </div>
-              {serviceError && (
-                <p className="text-sm text-red-600 mt-1">{serviceError}</p>
-              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -7154,10 +7720,10 @@ export default function BillingPage() {
               <div>
                 <Label htmlFor="total">Total Amount</Label>
                 <Input 
-                  id="total" 
-                  placeholder="Enter amount (e.g., 150.00)" 
+                  id="total"
+                  placeholder="Total will be calculated from line items"
                   value={totalAmount}
-                  onChange={(e) => setTotalAmount(e.target.value)}
+                  readOnly
                 />
                 {totalAmountError && (
                   <p className="text-sm text-red-600 mt-1">{totalAmountError}</p>
